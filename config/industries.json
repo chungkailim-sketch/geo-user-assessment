@@ -1,0 +1,166 @@
+{
+  "industries": [
+    {
+      "name": "Automotive",
+      "leader": "Toyota",
+      "leader_url": "https://www.toyota.com",
+      "keywords": [
+        "car",
+        "cars",
+        "vehicle",
+        "vehicles",
+        "suv",
+        "sedan",
+        "hybrid",
+        "dealer",
+        "dealership",
+        "test drive",
+        "automotive",
+        "truck",
+        "ev",
+        "electric vehicle",
+        "motor",
+        "motors",
+        "engine",
+        "drivetrain"
+      ]
+    },
+    {
+      "name": "Smart Phone",
+      "leader": "Apple",
+      "leader_url": "https://www.apple.com",
+      "keywords": [
+        "smartphone",
+        "smartphones",
+        "phone",
+        "phones",
+        "iphone",
+        "android",
+        "mobile",
+        "5g",
+        "galaxy",
+        "pixel",
+        "handset",
+        "camera phone",
+        "foldable"
+      ]
+    },
+    {
+      "name": "Consumer Electronics",
+      "leader": "Sony",
+      "leader_url": "https://www.sony.net",
+      "keywords": [
+        "electronics",
+        "tv",
+        "television",
+        "headphones",
+        "audio",
+        "speaker",
+        "camera",
+        "cameras",
+        "playstation",
+        "console",
+        "gaming",
+        "soundbar",
+        "earbuds",
+        "laptop",
+        "monitor"
+      ],
+      "aliases": [
+        "sony.com",
+        "sony.co.jp"
+      ]
+    },
+    {
+      "name": "Smart Home IoT",
+      "leader": "Samsung",
+      "leader_url": "https://www.samsung.com",
+      "keywords": [
+        "smart home",
+        "iot",
+        "smartthings",
+        "connected home",
+        "home automation",
+        "smart lock",
+        "thermostat",
+        "smart appliance",
+        "smart appliances",
+        "matter",
+        "zigbee",
+        "hub",
+        "security camera"
+      ]
+    },
+    {
+      "name": "Smart Cleaning",
+      "leader": "Dyson",
+      "leader_url": "https://www.dyson.com",
+      "keywords": [
+        "vacuum",
+        "vacuums",
+        "cordless",
+        "robot vacuum",
+        "mop",
+        "cleaning",
+        "cleaner",
+        "air purifier",
+        "purifier",
+        "suction",
+        "floor care",
+        "wet and dry",
+        "hair dryer"
+      ],
+      "aliases": [
+        "dyson.com.sg",
+        "dyson.co.uk"
+      ]
+    },
+    {
+      "name": "F&B",
+      "leader": "Starbucks",
+      "leader_url": "https://www.starbucks.com",
+      "keywords": [
+        "coffee",
+        "cafe",
+        "café",
+        "restaurant",
+        "menu",
+        "drinks",
+        "beverage",
+        "food",
+        "tea",
+        "bakery",
+        "order ahead",
+        "delivery",
+        "latte",
+        "espresso",
+        "dining",
+        "burger",
+        "pizza"
+      ]
+    },
+    {
+      "name": "Culture / Lifestyle",
+      "leader": "Booking.com",
+      "leader_url": "https://www.booking.com",
+      "keywords": [
+        "travel",
+        "hotel",
+        "hotels",
+        "booking",
+        "stays",
+        "flights",
+        "vacation",
+        "holiday",
+        "experiences",
+        "tours",
+        "lifestyle",
+        "culture",
+        "attractions",
+        "resort",
+        "accommodation",
+        "trip"
+      ]
+    }
+  ]
+}

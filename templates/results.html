@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Results · AI Readiness Score{% endblock %}
+{% block content %}
+<div id="app" data-job-id="{{ job_id }}">
+
+  <section id="loading" class="card loading" aria-live="polite">
+    <h1 class="loading-title">Assessing <span id="loading-target">your site</span>…</h1>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <p class="loading-stage" id="loading-stage">Queued</p>
+    <p class="muted">This usually takes 20–90 seconds: we read key pages, score every content block, and check
+      off-site authority.</p>
+  </section>
+
+  <section id="error" class="card error-card" hidden>
+    <h1>We couldn't complete this assessment</h1>
+    <p id="error-message"></p>
+    <a class="button" href="/">Try another URL</a>
+  </section>
+
+  <div id="report" hidden>
+    <!-- 1. Header & overall score -->
+    <section class="card summary">
+      <div class="summary-meta">
+        <p class="eyebrow">AI Readiness Score</p>
+        <h1 id="brand-name"></h1>
+        <a id="brand-url" class="muted url" target="_blank" rel="noopener noreferrer"></a>
+        <div class="industry-row">
+          <label for="industry-select">Industry</label>
+          <select id="industry-select"></select>
+          <span id="industry-method" class="chip"></span>
+        </div>
+        <p class="muted small" id="audited-at"></p>
+      </div>
+      <div class="gauge-wrap">
+        <canvas id="gauge" width="260" height="150" role="img" aria-label="AI readiness score gauge"></canvas>
+        <div class="gauge-value"><span id="score-value"></span><small>/100</small></div>
+        <div class="gauge-label" id="score-label"></div>
+      </div>
+    </section>
+
+    <!-- 2. Components -->
+    <section class="grid-2">
+      <div class="card stat">
+        <div class="stat-head"><h2>Citability</h2><span class="weight">55% weight</span></div>
+        <div class="stat-value"><span id="cit-score"></span><small>/100</small></div>
+        <div class="meter"><div class="meter-fill" id="cit-meter"></div></div>
+        <p class="muted small" id="cit-contribution"></p>
+      </div>
+      <div class="card stat">
+        <div class="stat-head"><h2>Authority</h2><span class="weight">45% weight</span></div>
+        <div class="stat-value"><span id="auth-score"></span><small>/100</small></div>
+        <div class="meter"><div class="meter-fill" id="auth-meter"></div></div>
+        <p class="muted small" id="auth-contribution"></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>How your score is built</h2>
+      <div class="composition" id="composition" aria-label="Score composition"></div>
+      <ul class="findings" id="findings"></ul>
+    </section>
+
+    <!-- 3. Citability detail -->
+    <section class="card">
+      <div class="section-head">
+        <h2>Citability breakdown</h2>
+        <p class="muted small" id="cit-meta"></p>
+      </div>
+      <div class="grid-2 inner">
+        <figure class="chart">
+          <figcaption>Five citability dimensions (0–100)</figcaption>
+          <div class="chart-box"><canvas id="cit-radar" role="img" aria-label="Citability dimensions radar"></canvas></div>
+        </figure>
+        <figure class="chart">
+          <figcaption>Content blocks by grade</figcaption>
+          <div class="chart-box"><canvas id="grade-bar" role="img" aria-label="Grade distribution"></canvas></div>
+        </figure>
+      </div>
+      <div class="stat-row">
+        <div><span class="stat-mini" id="coverage"></span><span class="muted small">blocks highly citable (&gt;70)</span></div>
+        <div><span class="stat-mini" id="optimal"></span><span class="muted small">at optimal length (134–167 words)</span></div>
+        <div><span class="stat-mini" id="blocks"></span><span class="muted small">content blocks analysed</span></div>
+      </div>
+      <div class="grid-2 inner">
+        <div>
+          <h3>Most citable passages</h3>
+          <ol class="passages" id="top-passages"></ol>
+        </div>
+        <div>
+          <h3>Passages to rewrite</h3>
+          <ol class="passages" id="bottom-passages"></ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Authority detail -->
+    <section class="card">
+      <div class="section-head">
+        <h2>Authority breakdown</h2>
+        <span class="badge" id="confidence"></span>
+      </div>
+      <figure class="chart">
+        <figcaption>Platform presence score (0–100) and weight</figcaption>
+        <div class="chart-box short"><canvas id="platform-bar" role="img" aria-label="Authority platform scores"></canvas></div>
+      </figure>
+      <div class="platforms" id="platforms"></div>
+    </section>
+
+    <!-- 5. Benchmark -->
+    <section class="card" id="benchmark-card">
+      <div class="section-head">
+        <h2 id="benchmark-title">Compared with the industry leader</h2>
+        <span class="legend" aria-hidden="true">
+          <span class="swatch s1"></span><span id="legend-brand">Your brand</span>
+          <span class="swatch s2"></span><span id="legend-leader">Leader</span>
+        </span>
+      </div>
+      <p id="benchmark-status" class="muted"></p>
+      <div id="benchmark-body">
+        <div class="gap-tiles" id="gap-tiles"></div>
+        <div class="grid-2 inner">
+          <figure class="chart">
+            <figcaption>Overall, citability and authority</figcaption>
+            <div class="chart-box"><canvas id="bench-bar" role="img" aria-label="Brand versus leader scores"></canvas></div>
+          </figure>
+          <figure class="chart">
+            <figcaption>Authority by platform</figcaption>
+            <div class="chart-box"><canvas id="bench-radar" role="img" aria-label="Brand versus leader platform radar"></canvas></div>
+          </figure>
+        </div>
+        <details class="data-table">
+          <summary>View as table</summary>
+          <table id="bench-table"></table>
+        </details>
+      </div>
+    </section>
+
+    <!-- 6. Actions -->
+    <section class="card">
+      <h2>Top priority actions</h2>
+      <ol class="actions" id="actions"></ol>
+    </section>
+
+    <div class="report-footer">
+      <a class="button secondary" href="/">Assess another site</a>
+      <button class="button secondary" id="rerun" type="button">Re-run fresh audit</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
+        integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script src="/static/js/charts.js" defer></script>
+<script src="/static/js/results.js" defer></script>
+{% endblock %}

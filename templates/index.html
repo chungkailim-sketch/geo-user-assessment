@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">Generative Engine Optimization</p>
+  <h1>How ready is your brand for AI search?</h1>
+  <p class="lede">
+    Enter a website to see how likely ChatGPT, Claude, Perplexity and Gemini are to cite it and how
+    much authority it carries, then compare it with the leader in its industry.
+  </p>
+
+  <form id="audit-form" class="audit-form" novalidate>
+    <label class="sr-only" for="url">Website URL</label>
+    <input id="url" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false"
+           placeholder="e.g. www.yourbrand.com" required maxlength="2048">
+    <label class="sr-only" for="industry">Industry</label>
+    <select id="industry" name="industry">
+      <option value="">Auto-detect industry</option>
+      {% for industry in industries %}
+      <option value="{{ industry.name }}">{{ industry.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" id="submit">Assess</button>
+  </form>
+  <p id="form-error" class="form-error" role="alert" hidden></p>
+</section>
+
+<section class="explainer">
+  <div class="explainer-card">
+    <div class="explainer-weight">55%</div>
+    <h2>Citability</h2>
+    <p>Can AI systems lift self-contained, fact-rich answers from your pages? We score every content block
+      for answer quality, self-containment, readability, statistics and original data.</p>
+  </div>
+  <div class="explainer-card">
+    <div class="explainer-weight">45%</div>
+    <h2>Authority</h2>
+    <p>Do AI models recognise your brand as an entity? We measure your presence on YouTube, Reddit, Wikipedia,
+      LinkedIn and news/review sites, the sources AI assistants rely on.</p>
+  </div>
+  <div class="explainer-card">
+    <div class="explainer-weight">vs</div>
+    <h2>Industry leader</h2>
+    <ul class="leaders">
+      {% for industry in industries %}
+      <li><span>{{ industry.name }}</span><strong>{{ industry.leader }}</strong></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/index.js" defer></script>
+{% endblock %}

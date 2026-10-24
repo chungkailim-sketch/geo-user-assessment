@@ -1,0 +1,81 @@
+"""Industry catalogue and keyword-based industry detection."""
+
+import json
+import re
+from dataclasses import dataclass
+from functools import lru_cache
+
+from app.config import ROOT_DIR
+from app.scoring.signals import registrable_domain
+
+INDUSTRIES_PATH = ROOT_DIR / "config" / "industries.json"
+
+
+@dataclass(frozen=True)
+class Industry:
+    name: str
+    leader: str
+    leader_url: str
+    keywords: tuple[str, ...]
+    aliases: tuple[str, ...] = ()
+
+    @property
+    def leader_domain(self) -> str:
+        return registrable_domain(self.leader_url)
+
+    def is_leader(self, domain: str) -> bool:
+        return domain == self.leader_domain or domain in self.aliases
+
+
+@lru_cache
+def load_industries() -> tuple[Industry, ...]:
+    data = json.loads(INDUSTRIES_PATH.read_text(encoding="utf-8"))
+    return tuple(
+        Industry(
+            i["name"], i["leader"], i["leader_url"],
+            tuple(k.lower() for k in i["keywords"]), tuple(i.get("aliases", [])),
+        )
+        for i in data["industries"]
+    )
+
+
+def get_industry(name: str | None) -> Industry | None:
+    if not name:
+        return None
+    return next((i for i in load_industries() if i.name.lower() == name.lower()), None)
+
+
+def industry_for_leader_domain(domain: str) -> Industry | None:
+    return next((i for i in load_industries() if i.is_leader(domain)), None)
+
+
+def keyword_scores(text: str) -> dict[str, int]:
+    lowered = text.lower()
+    scores = {}
+    for industry in load_industries():
+        scores[industry.name] = sum(
+            len(re.findall(r"(?<![a-z])" + re.escape(keyword) + r"(?![a-z])", lowered))
+            for keyword in industry.keywords
+        )
+    return scores
+
+
+@dataclass(frozen=True)
+class Detection:
+    industry: str
+    method: str
+    scores: dict
+
+
+def detect_industry(domain: str, weighted_text: str) -> Detection | None:
+    """Detect by leader domain first, then keyword hits. Returns None when ambiguous."""
+    leader = industry_for_leader_domain(domain)
+    if leader:
+        return Detection(leader.name, "leader domain", {})
+    scores = keyword_scores(weighted_text)
+    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
+    best, best_score = ranked[0]
+    runner_up = ranked[1][1] if len(ranked) > 1 else 0
+    if best_score == 0 or best_score < runner_up * 1.25:
+        return Detection(best, "ambiguous", scores) if best_score else None
+    return Detection(best, "keywords", scores)
