@@ -173,6 +173,20 @@ def test_manual_other_industry_finds_leader_and_retailors_strategy(make_client):
     assert claude.count("typed their industry") == 1
 
 
+def test_manual_industry_matching_detected_industry_is_not_duplicated(make_client):
+    banking = {"name": "Banking", "name_zh": "银行金融", "leader": "JPMorgan Chase",
+               "leader_zh": "摩根大通", "leader_url": "https://www.jpmorganchase.example"}
+    claude = RoutingClaude({"industry": "other", "custom": banking}, {"industry": "other", "custom": banking})
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+        assert job["result"]["industry"]["custom_names"] == ["Banking"]
+        for text in ("金融科技", "银行业"):  # both resolve to the AI-detected "Banking"
+            assert client.post("/api/benchmark", json={"audit_id": job["job_id"], "custom_industry": text}).status_code == 200
+        industry = client.get(f"/api/audit/{job['job_id']}").json()["result"]["industry"]
+    assert industry["custom_names"] == ["Banking"] and industry["options"].count("Banking") == 1
+    assert industry["selected"] == "Banking"
+
+
 def test_manual_industry_requires_claude_and_valid_input(make_client):
     with make_client() as client:
         job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])

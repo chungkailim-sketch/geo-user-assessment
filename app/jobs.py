@@ -45,8 +45,13 @@ class JobState:
 
 
 def _customs(industry_block: dict) -> list[dict]:
-    """Industries outside the catalogue attached to an audit: AI-detected first, then manual ones."""
-    return [c for c in [industry_block.get("custom"), *industry_block.get("manual", [])] if c]
+    """Industries outside the catalogue attached to an audit: AI-detected first, then manual ones,
+    de-duplicated by name (a typed industry can resolve to the one AI already detected)."""
+    unique: dict[str, dict] = {}
+    for custom in [industry_block.get("custom"), *industry_block.get("manual", [])]:
+        if custom and custom["name"].lower() not in unique:
+            unique[custom["name"].lower()] = custom
+    return list(unique.values())
 
 
 def industry_state(block: dict, selected: Industry | None) -> dict:
@@ -225,8 +230,8 @@ class JobManager:
                 block = stored["industry"]
                 if custom_text:
                     industry, custom = await self._manual_industry(stored, custom_text)
-                    if custom is not None:
-                        others = [m for m in block.get("manual", []) if m["name"] != custom["name"]]
+                    if custom is not None and custom["name"].lower() not in {c["name"].lower() for c in _customs(block)}:
+                        others = block.get("manual", [])
                         block = {**block, "manual": [custom, *others][:MAX_MANUAL_INDUSTRIES]}
                 else:
                     industry = resolve_industry(industry_name, *_customs(block))
