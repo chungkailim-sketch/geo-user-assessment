@@ -6,6 +6,13 @@
   const jobId = app.dataset.jobId;
   const POLL_MS = 2000;
   const MAX_POLL_ERRORS = 5;
+  const METHOD_LABELS = {
+    "leader domain": "标杆官网识别",
+    keywords: "关键词识别",
+    "ai classification": "AI识别",
+    ambiguous: "关键词识别（待确认）",
+    none: "未识别",
+  };
   const $ = (id) => document.getElementById(id);
   let report = null;
 
@@ -38,16 +45,16 @@
   async function poll() {
     try {
       const response = await fetch("/api/audit/" + encodeURIComponent(jobId), { cache: "no-store" });
-      if (response.status === 404) return showError("This assessment was not found or has expired.");
+      if (response.status === 404) return showError("未找到该诊断报告，或报告已过期。");
       if (!response.ok) throw new Error("HTTP " + response.status);
       pollErrors = 0;
       const job = await response.json();
       if (job.status === "done") return render(job.result);
-      if (job.status === "error") return showError(job.error || "The assessment failed.");
+      if (job.status === "error") return showError(job.error || "诊断失败。");
       setProgress(job.progress, job.stage);
     } catch (err) {
       pollErrors += 1;
-      if (pollErrors >= MAX_POLL_ERRORS) return showError("Lost connection to the server. Please refresh the page.");
+      if (pollErrors >= MAX_POLL_ERRORS) return showError("与服务器的连接已中断，请刷新页面。");
     }
     setTimeout(poll, POLL_MS);
   }
@@ -55,7 +62,7 @@
   function setProgress(pct, stage) {
     $("progress-fill").style.width = Math.max(5, pct) + "%";
     $("progress").setAttribute("aria-valuenow", String(pct));
-    $("loading-stage").textContent = stage || "Working…";
+    $("loading-stage").textContent = stage || "处理中…";
   }
 
   function showError(message) {
@@ -69,7 +76,7 @@
     report = result;
     $("loading").hidden = true;
     $("report").hidden = false;
-    document.title = result.brand_name + " · AI Readiness Score";
+    document.title = result.brand_name + " · AI搜索就绪度诊断报告";
     renderSummary(result);
     renderComponents(result);
     renderCitability(result.citability);
@@ -86,19 +93,21 @@
     if (href) link.href = href;
     $("score-value").textContent = Math.round(r.score);
     $("score-label").textContent = r.label;
-    $("audited-at").textContent = "Assessed " + new Date(r.audited_at).toLocaleString() +
-      " · " + r.citability.pages_analyzed + " pages analysed";
+    $("audited-at").textContent = "诊断时间 " + new Date(r.audited_at).toLocaleString("zh-CN") +
+      " · 共分析 " + r.citability.pages_analyzed + " 个页面";
     ReadinessCharts.gauge("gauge", r.score);
 
     const select = $("industry-select");
-    select.replaceChildren(el("option", { value: "", text: "Choose industry…" }));
+    select.replaceChildren(el("option", { value: "", text: "选择行业…" }));
+    const labels = r.industry.option_labels || {};
     r.industry.options.forEach((name) => {
-      const option = el("option", { value: name, text: name });
+      const option = el("option", { value: name, text: labels[name] || name });
       if (name === r.industry.selected) option.selected = true;
       select.appendChild(option);
     });
-    const method = r.industry.method === "none" ? "not detected" : "detected via " + r.industry.method;
-    $("industry-method").textContent = r.industry.selected === r.industry.detected ? method : "manually selected";
+    $("industry-method").textContent = r.industry.selected === r.industry.detected
+      ? (METHOD_LABELS[r.industry.method] || "自动识别")
+      : "手动选择";
     select.onchange = () => select.value && rebenchmark(select.value);
   }
 
@@ -109,32 +118,32 @@
     $("auth-score").textContent = Math.round(a);
     $("cit-meter").style.width = c + "%";
     $("auth-meter").style.width = a + "%";
-    $("cit-contribution").textContent = fmt(c) + " × " + cw + " = " + fmt(c * cw) + " points";
-    $("auth-contribution").textContent = fmt(a) + " × " + aw + " = " + fmt(a * aw) + " points";
+    $("cit-contribution").textContent = fmt(c) + " × " + cw + " = 贡献 " + fmt(c * cw) + " 分";
+    $("auth-contribution").textContent = fmt(a) + " × " + aw + " = 贡献 " + fmt(a * aw) + " 分";
 
     const comp = $("composition");
     comp.replaceChildren(
-      el("div", { className: "seg-cit", width: c * cw + "%", title: "Citability " + fmt(c * cw), text: "Citability " + fmt(c * cw) }),
-      el("div", { className: "seg-auth", width: a * aw + "%", title: "Authority " + fmt(a * aw), text: "Authority " + fmt(a * aw) })
+      el("div", { className: "seg-cit", width: c * cw + "%", title: "可引用性 " + fmt(c * cw), text: "可引用性 " + fmt(c * cw) }),
+      el("div", { className: "seg-auth", width: a * aw + "%", title: "权威度 " + fmt(a * aw), text: "权威度 " + fmt(a * aw) })
     );
 
-    const labels = { critical: "Critical", high: "High", medium: "Medium", strength: "Strength", info: "Note" };
+    const labels = { critical: "严重", high: "高", medium: "中", strength: "优势", info: "提示" };
     $("findings").replaceChildren(...r.findings.map((f) =>
       el("li", {}, [el("span", { className: "sev sev-" + f.severity, text: labels[f.severity] || f.severity }), el("span", { text: f.text })])
     ));
   }
 
   function passageItem(p, withTip) {
-    const heading = p.heading && p.heading !== "Introduction" ? p.heading : "(untitled section)";
+    const heading = p.heading && p.heading !== "Introduction" ? p.heading : "（无标题段落）";
     return el("li", {}, [
       el("strong", { text: heading + " · " + p.score + "/100 (" + p.grade + ")" }),
       el("span", { className: "preview", text: "“" + p.preview + "”" }),
-      withTip ? el("span", { className: "tip", text: "Weakest: " + p.weakest + ". " + p.tip }) : null,
+      withTip ? el("span", { className: "tip", text: "短板：" + p.weakest + "。" + p.tip }) : null,
     ]);
   }
 
   function renderCitability(c) {
-    $("cit-meta").textContent = c.pages_analyzed + " pages · " + c.blocks_analyzed + " blocks";
+    $("cit-meta").textContent = c.pages_analyzed + " 个页面 · " + c.blocks_analyzed + " 个内容块";
     const keys = Object.keys(c.subscores);
     ReadinessCharts.citabilityRadar("cit-radar", keys.map((k) => c.subscore_labels[k]), keys.map((k) => c.subscores[k]));
     ReadinessCharts.gradeBar("grade-bar", c.grade_distribution);
@@ -143,14 +152,14 @@
     $("blocks").textContent = c.blocks_analyzed;
 
     const empty = (text) => el("li", { className: "empty", text: text });
-    $("top-passages").replaceChildren(...(c.top_passages.length ? c.top_passages.map((p) => passageItem(p, false)) : [empty("No readable passages found.")]));
-    $("bottom-passages").replaceChildren(...(c.bottom_passages.length ? c.bottom_passages.map((p) => passageItem(p, true)) : [empty("No passages below 60. Nice work.")]));
+    $("top-passages").replaceChildren(...(c.top_passages.length ? c.top_passages.map((p) => passageItem(p, false)) : [empty("未找到可读取的段落。")]));
+    $("bottom-passages").replaceChildren(...(c.bottom_passages.length ? c.bottom_passages.map((p) => passageItem(p, true)) : [empty("暂无低于60分的段落，表现不错。")]));
   }
 
   function renderAuthority(a) {
     const badge = $("confidence");
     badge.className = "badge " + a.confidence;
-    badge.textContent = a.confidence === "full" ? "Verified with live web search" : "Limited: on-site signals only";
+    badge.textContent = a.confidence === "full" ? "已通过联网搜索核实" : "有限：仅基于官网与Wikidata信号";
     ReadinessCharts.platformBar("platform-bar", a.platforms);
     $("platforms").replaceChildren(...a.platforms.map((p) => {
       const sources = p.sources.map(safeHref).filter(Boolean).slice(0, 3).map((href) => {
@@ -170,8 +179,8 @@
     const ahead = gap >= 0;
     return el("div", { className: "gap-tile" }, [
       el("div", { className: "label", text: label }),
-      el("div", { className: "value" + (ahead ? " ahead" : ""), text: signed(gap) + " pts" }),
-      el("div", { className: "detail", text: ahead ? "ahead of " + leaderName : "behind " + leaderName }),
+      el("div", { className: "value" + (ahead ? " ahead" : ""), text: signed(gap) + " 分" }),
+      el("div", { className: "detail", text: ahead ? "领先" + leaderName : "落后" + leaderName }),
     ]);
   }
 
@@ -179,34 +188,33 @@
     const status = $("benchmark-status");
     const body = $("benchmark-body");
     if (!b) {
-      $("benchmark-title").textContent = "Compared with the industry leader";
-      status.textContent = "Choose an industry above to compare against its leader.";
+      $("benchmark-title").textContent = "行业标杆对比";
+      status.textContent = "请在上方选择所属行业，与该行业标杆品牌进行对比。";
       body.hidden = true;
       return;
     }
-    $("benchmark-title").textContent = "Compared with " + b.leader + " (" + b.industry + " leader)";
+    const leader = b.leader_zh || b.leader;
+    $("benchmark-title").textContent = "对标" + (b.industry_zh || b.industry) + "行业标杆：" + leader;
     if (b.status !== "ok") {
-      status.textContent = "We couldn't assess " + b.leader + ", so the comparison is unavailable. " +
-        (b.reason || "Try again later.");
+      status.textContent = "暂时无法评估" + leader + "，对比数据不可用。" + (b.reason || "请稍后重试。");
       body.hidden = true;
       return;
     }
     body.hidden = false;
     const brand = report.brand_name;
-    const leader = b.leader;
     $("legend-brand").textContent = brand;
     $("legend-leader").textContent = leader;
     const ls = b.leader_scores;
 
     if (b.is_leader) {
       status.textContent = "";
-      $("gap-tiles").replaceChildren(el("div", { className: "leader-banner", text: "You are the category benchmark for " + b.industry + "." }));
+      $("gap-tiles").replaceChildren(el("div", { className: "leader-banner", text: "你就是" + (b.industry_zh || b.industry) + "行业的标杆品牌。" }));
     } else {
       status.textContent = "";
       $("gap-tiles").replaceChildren(
-        gapTile("Overall readiness", b.gaps.overall, leader),
-        gapTile("Citability", b.gaps.citability, leader),
-        gapTile("Authority", b.gaps.authority, leader)
+        gapTile("综合就绪度", b.gaps.overall, leader),
+        gapTile("内容可引用性", b.gaps.citability, leader),
+        gapTile("品牌权威度", b.gaps.authority, leader)
       );
     }
 
@@ -215,14 +223,14 @@
     ReadinessCharts.benchBar("bench-bar", brand, leader, brandVals, leaderVals);
     const platforms = report.authority.platforms;
     ReadinessCharts.benchRadar(
-      "bench-radar", platforms.map((p) => p.label.split(" (")[0]), brand, leader,
+      "bench-radar", platforms.map((p) => p.short_label || p.label), brand, leader,
       platforms.map((p) => p.score), platforms.map((p) => ls.platforms[p.key] || 0)
     );
 
-    const rows = [["Overall", brandVals[0], leaderVals[0]], ["Citability", brandVals[1], leaderVals[1]], ["Authority", brandVals[2], leaderVals[2]]]
-      .concat(platforms.map((p) => ["  " + p.label, p.score, ls.platforms[p.key] || 0]));
+    const rows = [["综合得分", brandVals[0], leaderVals[0]], ["内容可引用性", brandVals[1], leaderVals[1]], ["品牌权威度", brandVals[2], leaderVals[2]]]
+      .concat(platforms.map((p) => ["  " + (p.short_label || p.label), p.score, ls.platforms[p.key] || 0]));
     $("bench-table").replaceChildren(
-      el("thead", {}, [el("tr", {}, [el("th", { text: "Metric" }), el("th", { text: brand }), el("th", { text: leader }), el("th", { text: "Gap" })])]),
+      el("thead", {}, [el("tr", {}, [el("th", { text: "指标" }), el("th", { text: brand }), el("th", { text: leader }), el("th", { text: "差距" })])]),
       el("tbody", {}, rows.map((row) => el("tr", {}, [
         el("td", { text: row[0] }), el("td", { text: fmt(row[1]) }), el("td", { text: fmt(row[2]) }), el("td", { text: signed(row[1] - row[2]) }),
       ])))
@@ -231,14 +239,15 @@
 
   function renderActions(actions) {
     $("actions").replaceChildren(...actions.map((a) => el("li", {}, [
-      el("strong", { text: a.area + " (currently " + Math.round(a.current) + "/100)" }),
+      el("strong", { text: a.area + "（当前 " + Math.round(a.current) + "/100）" }),
       el("span", { text: a.action + " " }),
-      el("span", { className: "lift", text: "Up to +" + fmt(a.potential_lift) + " readiness points" }),
+      el("span", { className: "lift", text: "预计最多提升 +" + fmt(a.potential_lift) + " 分" }),
     ])));
   }
 
   async function rebenchmark(industry) {
-    $("benchmark-status").textContent = "Assessing the " + industry + " leader… this can take up to a minute the first time.";
+    const industryLabel = (report.industry.option_labels || {})[industry] || industry;
+    $("benchmark-status").textContent = "正在评估" + industryLabel + "行业标杆…首次对比约需一分钟。";
     $("benchmark-body").hidden = true;
     try {
       const response = await fetch("/api/benchmark", {
@@ -249,10 +258,11 @@
       if (!response.ok) throw new Error("HTTP " + response.status);
       const benchmark = await response.json();
       report = Object.assign({}, report, { benchmark: benchmark, industry: Object.assign({}, report.industry, { selected: industry }) });
-      $("industry-method").textContent = report.industry.selected === report.industry.detected ? "detected" : "manually selected";
+      $("industry-method").textContent = report.industry.selected === report.industry.detected
+        ? (METHOD_LABELS[report.industry.method] || "自动识别") : "手动选择";
       renderBenchmark(benchmark);
     } catch (err) {
-      $("benchmark-status").textContent = "Could not load the comparison. Please try again.";
+      $("benchmark-status").textContent = "对比数据加载失败，请重试。";
     }
   }
 

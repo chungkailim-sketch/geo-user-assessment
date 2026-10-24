@@ -6,6 +6,8 @@ A web app that scores how ready a brand's website is for AI search (ChatGPT, Cla
 AI Readiness = Citability × 0.55 + Authority × 0.45      (0–100)
 ```
 
+**UI language:** Simplified Chinese (zh-CN). Terminology follows AIDSO (aidso.com), e.g. 品牌诊断, 被引用和推荐, 品牌提及, 行业标杆, 逐项GEO优化方案. Internal keys and API values (industry names, platform keys) stay in English, and Chinese display names live in `config/industries.json` (`name_zh`, `leader_zh`).
+
 The scoring comes from two modules of the GEO (Generative Engine Optimization) audit skill:
 
 | Component | Weight | What is measured | Source logic |

@@ -11,7 +11,7 @@
     errorBox.textContent = message;
     errorBox.hidden = false;
     submit.disabled = false;
-    submit.textContent = "Assess";
+    submit.textContent = "立即诊断";
   }
 
   form.addEventListener("submit", async (event) => {
@@ -19,12 +19,12 @@
     errorBox.hidden = true;
     const url = urlInput.value.trim();
     if (!url) {
-      showError("Please enter a website URL.");
+      showError("请输入官网网址。");
       urlInput.focus();
       return;
     }
     submit.disabled = true;
-    submit.textContent = "Starting…";
+    submit.textContent = "正在启动…";
     try {
       const response = await fetch("/api/audit", {
         method: "POST",
@@ -33,13 +33,13 @@
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const detail = typeof data.detail === "string" ? data.detail : "Please check the URL and try again.";
+        const detail = typeof data.detail === "string" ? data.detail : "请检查网址后重试。";
         showError(detail);
         return;
       }
       window.location.assign(data.results_url);
     } catch (err) {
-      showError("Could not reach the server. Please try again.");
+      showError("无法连接服务器，请稍后重试。");
     }
   });
 })();

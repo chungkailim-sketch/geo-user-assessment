@@ -20,7 +20,9 @@ def leader_summary(result: dict) -> dict:
 def compare(brand: dict, leader: dict | None, industry: Industry, reason: str | None = None) -> dict:
     base = {
         "industry": industry.name,
+        "industry_zh": industry.name_zh,
         "leader": industry.leader,
+        "leader_zh": industry.leader_zh,
         "leader_url": industry.leader_url,
         "is_leader": industry.is_leader(brand["domain"]),
     }

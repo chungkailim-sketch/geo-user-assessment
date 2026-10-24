@@ -30,7 +30,8 @@ from app.scoring.wikipedia import WikipediaChecker
 log = logging.getLogger(__name__)
 
 Progress = Callable[[str, int], Awaitable[None]]
-DEGRADED_NOTE = "Some data sources were temporarily unavailable, so this result may be incomplete (it was not cached)."
+SITE_KEY = "site:v2:"  # bump when result wording/shape changes so stale cache entries are ignored
+DEGRADED_NOTE = "部分数据源暂时不可用，本次诊断结果可能不完整（未写入缓存）。"
 
 
 async def _noop_progress(stage: str, pct: int) -> None:
@@ -67,7 +68,7 @@ class Auditor:
         return self.settings.leader_cache_ttl_seconds if domain in leaders else self.settings.user_cache_ttl_seconds
 
     def cached(self, domain: str) -> dict | None:
-        return self.cache.get(f"site:{domain}", self._ttl_for(domain))
+        return self.cache.get(f"{SITE_KEY}{domain}", self._ttl_for(domain))
 
     async def audit(self, url: str, progress: Progress = _noop_progress, refresh: bool = False) -> dict:
         """Audit a site's homepage, serialising concurrent audits of the same domain.
@@ -85,14 +86,14 @@ class Auditor:
         try:
             async with lock:
                 ttl = self.settings.min_refresh_seconds if refresh else self._ttl_for(domain)
-                if hit := self.cache.get(f"site:{domain}", ttl):
-                    await progress("Loaded cached result", 80)
+                if hit := self.cache.get(f"{SITE_KEY}{domain}", ttl):
+                    await progress("已加载近期诊断结果", 80)
                     return hit
                 async with self._slots:
                     async with asyncio.timeout(self.settings.audit_deadline_seconds):
                         result = await self._run(root, progress)
                 if not result["degraded"]:
-                    self.cache.set(f"site:{domain}", result)
+                    self.cache.set(f"{SITE_KEY}{domain}", result)
                 return result
         finally:
             self._lock_users[domain] -= 1
@@ -101,15 +102,15 @@ class Auditor:
                 self._locks.pop(domain, None)
 
     async def _run(self, url: str, progress: Progress) -> dict:
-        await progress("Crawling website", 10)
+        await progress("正在抓取网站页面", 10)
         crawl = await Crawler(self.fetcher, self.settings.max_pages).crawl(url)
         domain = registrable_domain(url)  # identity = what the user entered, not geo-redirect targets
         final_domain = registrable_domain(crawl.homepage.url)
 
-        await progress("Scoring content citability", 35)
+        await progress("正在评估内容可引用性", 35)
         citability = analyze_site([(page.url, page.text) for page in crawl.pages])
 
-        await progress("Checking Wikipedia & Wikidata", 50)
+        await progress("正在核查维基百科与Wikidata收录", 50)
         signals = extract_signals(crawl.homepage.text, crawl.homepage.url, domain)
         leader_of = industry_for_leader_domain(domain)
         alt_domains = tuple(
@@ -119,14 +120,14 @@ class Auditor:
 
         claude_result = None
         if self.claude is not None:
-            await progress("Searching the web for brand authority", 65)
+            await progress("正在联网检索品牌权威信号", 65)
             claude_result = await assess_authority(
                 self.claude, self.settings.claude_model, signals.brand_name, domain, signals.to_dict()
             )
         authority = build_authority(signals, wiki, claude_result)
         degraded = bool(wiki.errors) or (self.claude is not None and claude_result is None)
 
-        await progress("Detecting industry", 85)
+        await progress("正在识别所属行业", 85)
         industry = await self._detect_industry(domain, signals, citability)
 
         score = readiness_score(citability["score"], authority["score"])

@@ -34,7 +34,6 @@
         legend: { display: false },
         tooltip: { padding: 10, cornerRadius: 8, displayColors: true, boxPadding: 4 },
       },
-      font: { family: "system-ui, -apple-system, Segoe UI, sans-serif" },
       color: t.text,
     };
   }
@@ -51,8 +50,18 @@
     };
   }
 
+  const FONT = 'system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif';
+
+  const CJK = /[㐀-鿿]/;
+
   // Split long labels into two lines so radar/axis labels are not clipped on phones.
+  // Chinese labels have no spaces, so they are split by character count instead.
   function wrap(label) {
+    if (CJK.test(label) && !label.includes(" ")) {
+      if (label.length <= 6) return label;
+      const mid = Math.ceil(label.length / 2);
+      return [label.slice(0, mid), label.slice(mid)];
+    }
     if (label.length <= 14) return label;
     const words = label.split(" ");
     const mid = Math.ceil(words.length / 2);
@@ -61,6 +70,7 @@
 
   const registry = {};
   function mount(id, config) {
+    Chart.defaults.font.family = FONT;
     if (registry[id]) registry[id].destroy();
     registry[id] = new Chart(document.getElementById(id), config);
     return registry[id];
@@ -71,7 +81,7 @@
     return mount(id, {
       type: "doughnut",
       data: {
-        labels: ["Score", "Remaining"],
+        labels: ["得分", "剩余"],
         datasets: [{
           data: [score, Math.max(0, 100 - score)],
           backgroundColor: [t.s1, t.track],
@@ -93,7 +103,7 @@
       data: {
         labels: labels.map(wrap),
         datasets: [{
-          label: "Your site", data: values,
+          label: "你的网站", data: values,
           borderColor: t.s1, backgroundColor: alpha(t.s1, 0.18), borderWidth: 2,
           pointBackgroundColor: t.s1, pointBorderColor: t.surface, pointBorderWidth: 2, pointRadius: 4, pointHoverRadius: 6,
         }],
@@ -108,9 +118,9 @@
     return mount(id, {
       type: "bar",
       data: {
-        labels: grades.map((g) => "Grade " + g),
+        labels: grades.map((g) => g + " 级"),
         datasets: [{
-          label: "Blocks", data: grades.map((g) => distribution[g] || 0),
+          label: "内容块", data: grades.map((g) => distribution[g] || 0),
           backgroundColor: t.seq, borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: "bottom",
           maxBarThickness: 44,
         }],
@@ -129,9 +139,9 @@
     return mount(id, {
       type: "bar",
       data: {
-        labels: platforms.map((p) => p.label.split(" (")[0].replace(" / Wikidata", "") + " · " + Math.round(p.weight * 100) + "%"),
+        labels: platforms.map((p) => (p.short_label || p.label) + " · " + Math.round(p.weight * 100) + "%"),
         datasets: [{
-          label: "Score", data: platforms.map((p) => p.score),
+          label: "得分", data: platforms.map((p) => p.score),
           backgroundColor: t.s1, borderRadius: { topRight: 4, bottomRight: 4 }, borderSkipped: "left",
           maxBarThickness: 22,
         }],
@@ -155,7 +165,7 @@
     return mount(id, {
       type: "bar",
       data: {
-        labels: ["Overall", "Citability", "Authority"],
+        labels: ["综合得分", "可引用性", "品牌权威度"],
         datasets: [ds(brandName, brandValues, t.s1), ds(leaderName, leaderValues, t.s2)],
       },
       options: Object.assign(baseOptions(t), {

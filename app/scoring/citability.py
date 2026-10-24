@@ -18,18 +18,18 @@ SUBSCORE_MAX = {
     "uniqueness_signals": 10,
 }
 SUBSCORE_LABELS = {
-    "answer_block_quality": "Answer Block Quality",
-    "self_containment": "Self-Containment",
-    "structural_readability": "Structural Readability",
-    "statistical_density": "Statistical Density",
-    "uniqueness_signals": "Uniqueness & Original Data",
+    "answer_block_quality": "答案块质量",
+    "self_containment": "段落独立性",
+    "structural_readability": "结构可读性",
+    "statistical_density": "数据密度",
+    "uniqueness_signals": "原创性与独家数据",
 }
 REWRITE_TIPS = {
-    "answer_block_quality": "Open with a direct answer in the first sentence (e.g. \"X is ...\") and use a question-style heading.",
-    "self_containment": "Make the passage stand alone: aim for 134-167 words, name the brand/product instead of 'it/this/they'.",
-    "structural_readability": "Break into short 10-20 word sentences and use numbered steps or lists.",
-    "statistical_density": "Add specific numbers, percentages, years and a named source (\"according to ...\").",
-    "uniqueness_signals": "Add original data, a concrete example or case study (\"our research found ...\").",
+    "answer_block_quality": "首句直接给出答案（如“X是……”），并使用问句式小标题，便于AI直接引用。",
+    "self_containment": "让段落可被独立引用：篇幅控制在134–167词，用品牌/产品名替代“它/这/他们”等指代词。",
+    "structural_readability": "拆分为10–20词的短句，并使用编号步骤或列表呈现。",
+    "statistical_density": "补充具体数字、百分比、年份，并注明信息来源（如“据……数据显示”）。",
+    "uniqueness_signals": "加入原创数据、具体案例或案例研究（如“我们的调研发现……”）。",
 }
 
 

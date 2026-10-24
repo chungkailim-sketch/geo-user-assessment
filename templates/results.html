@@ -1,55 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Results · AI Readiness Score{% endblock %}
+{% block title %}诊断报告 · AI搜索就绪度诊断{% endblock %}
 {% block content %}
 <div id="app" data-job-id="{{ job_id }}">
 
   <section id="loading" class="card loading" aria-live="polite">
-    <h1 class="loading-title">Assessing <span id="loading-target">your site</span>…</h1>
+    <h1 class="loading-title">正在诊断<span id="loading-target">你的网站</span>…</h1>
     <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress">
       <div class="progress-fill" id="progress-fill"></div>
     </div>
-    <p class="loading-stage" id="loading-stage">Queued</p>
-    <p class="muted">This usually takes 20–90 seconds: we read key pages, score every content block, and check
-      off-site authority.</p>
+    <p class="loading-stage" id="loading-stage">排队中</p>
+    <p class="muted">通常需要20–90秒：我们会读取关键页面、逐段评估内容可引用性，并核查站外品牌权威信号。</p>
   </section>
 
   <section id="error" class="card error-card" hidden>
-    <h1>We couldn't complete this assessment</h1>
+    <h1>本次诊断未能完成</h1>
     <p id="error-message"></p>
-    <a class="button" href="/">Try another URL</a>
+    <a class="button" href="/">换个网址试试</a>
   </section>
 
   <div id="report" hidden>
-    <!-- 1. Header & overall score -->
+    <!-- 1. 总览 -->
     <section class="card summary">
       <div class="summary-meta">
-        <p class="eyebrow">AI Readiness Score</p>
+        <p class="eyebrow">AI搜索就绪度</p>
         <h1 id="brand-name"></h1>
         <a id="brand-url" class="muted url" target="_blank" rel="noopener noreferrer"></a>
         <div class="industry-row">
-          <label for="industry-select">Industry</label>
+          <label for="industry-select">所属行业</label>
           <select id="industry-select"></select>
           <span id="industry-method" class="chip"></span>
         </div>
         <p class="muted small" id="audited-at"></p>
       </div>
       <div class="gauge-wrap">
-        <canvas id="gauge" width="260" height="150" role="img" aria-label="AI readiness score gauge"></canvas>
+        <canvas id="gauge" width="260" height="150" role="img" aria-label="AI搜索就绪度评分仪表盘"></canvas>
         <div class="gauge-value"><span id="score-value"></span><small>/100</small></div>
         <div class="gauge-label" id="score-label"></div>
       </div>
     </section>
 
-    <!-- 2. Components -->
+    <!-- 2. 两大维度 -->
     <section class="grid-2">
       <div class="card stat">
-        <div class="stat-head"><h2>Citability</h2><span class="weight">55% weight</span></div>
+        <div class="stat-head"><h2>内容可引用性</h2><span class="weight">权重 55%</span></div>
         <div class="stat-value"><span id="cit-score"></span><small>/100</small></div>
         <div class="meter"><div class="meter-fill" id="cit-meter"></div></div>
         <p class="muted small" id="cit-contribution"></p>
       </div>
       <div class="card stat">
-        <div class="stat-head"><h2>Authority</h2><span class="weight">45% weight</span></div>
+        <div class="stat-head"><h2>品牌权威度</h2><span class="weight">权重 45%</span></div>
         <div class="stat-value"><span id="auth-score"></span><small>/100</small></div>
         <div class="meter"><div class="meter-fill" id="auth-meter"></div></div>
         <p class="muted small" id="auth-contribution"></p>
@@ -57,64 +56,64 @@
     </section>
 
     <section class="card">
-      <h2>How your score is built</h2>
-      <div class="composition" id="composition" aria-label="Score composition"></div>
+      <h2>得分构成与核心发现</h2>
+      <div class="composition" id="composition" aria-label="得分构成"></div>
       <ul class="findings" id="findings"></ul>
     </section>
 
-    <!-- 3. Citability detail -->
+    <!-- 3. 可引用性详情 -->
     <section class="card">
       <div class="section-head">
-        <h2>Citability breakdown</h2>
+        <h2>内容可引用性分析</h2>
         <p class="muted small" id="cit-meta"></p>
       </div>
       <div class="grid-2 inner">
         <figure class="chart">
-          <figcaption>Five citability dimensions (0–100)</figcaption>
-          <div class="chart-box"><canvas id="cit-radar" role="img" aria-label="Citability dimensions radar"></canvas></div>
+          <figcaption>可引用性五大维度（0–100）</figcaption>
+          <div class="chart-box"><canvas id="cit-radar" role="img" aria-label="可引用性维度雷达图"></canvas></div>
         </figure>
         <figure class="chart">
-          <figcaption>Content blocks by grade</figcaption>
-          <div class="chart-box"><canvas id="grade-bar" role="img" aria-label="Grade distribution"></canvas></div>
+          <figcaption>内容块评级分布</figcaption>
+          <div class="chart-box"><canvas id="grade-bar" role="img" aria-label="内容块评级分布"></canvas></div>
         </figure>
       </div>
       <div class="stat-row">
-        <div><span class="stat-mini" id="coverage"></span><span class="muted small">blocks highly citable (&gt;70)</span></div>
-        <div><span class="stat-mini" id="optimal"></span><span class="muted small">at optimal length (134–167 words)</span></div>
-        <div><span class="stat-mini" id="blocks"></span><span class="muted small">content blocks analysed</span></div>
+        <div><span class="stat-mini" id="coverage"></span><span class="muted small">内容块具备高可引用性（&gt;70分）</span></div>
+        <div><span class="stat-mini" id="optimal"></span><span class="muted small">篇幅处于最佳区间（134–167词）</span></div>
+        <div><span class="stat-mini" id="blocks"></span><span class="muted small">已分析内容块</span></div>
       </div>
       <div class="grid-2 inner">
         <div>
-          <h3>Most citable passages</h3>
+          <h3>最易被AI引用的段落</h3>
           <ol class="passages" id="top-passages"></ol>
         </div>
         <div>
-          <h3>Passages to rewrite</h3>
+          <h3>建议优先改写的段落</h3>
           <ol class="passages" id="bottom-passages"></ol>
         </div>
       </div>
     </section>
 
-    <!-- 4. Authority detail -->
+    <!-- 4. 权威度详情 -->
     <section class="card">
       <div class="section-head">
-        <h2>Authority breakdown</h2>
+        <h2>品牌权威度分析</h2>
         <span class="badge" id="confidence"></span>
       </div>
       <figure class="chart">
-        <figcaption>Platform presence score (0–100) and weight</figcaption>
-        <div class="chart-box short"><canvas id="platform-bar" role="img" aria-label="Authority platform scores"></canvas></div>
+        <figcaption>各引用来源平台得分（0–100）及权重</figcaption>
+        <div class="chart-box short"><canvas id="platform-bar" role="img" aria-label="品牌权威度平台得分"></canvas></div>
       </figure>
       <div class="platforms" id="platforms"></div>
     </section>
 
-    <!-- 5. Benchmark -->
+    <!-- 5. 行业标杆对比 -->
     <section class="card" id="benchmark-card">
       <div class="section-head">
-        <h2 id="benchmark-title">Compared with the industry leader</h2>
+        <h2 id="benchmark-title">行业标杆对比</h2>
         <span class="legend" aria-hidden="true">
-          <span class="swatch s1"></span><span id="legend-brand">Your brand</span>
-          <span class="swatch s2"></span><span id="legend-leader">Leader</span>
+          <span class="swatch s1"></span><span id="legend-brand">你的品牌</span>
+          <span class="swatch s2"></span><span id="legend-leader">行业标杆</span>
         </span>
       </div>
       <p id="benchmark-status" class="muted"></p>
@@ -122,30 +121,30 @@
         <div class="gap-tiles" id="gap-tiles"></div>
         <div class="grid-2 inner">
           <figure class="chart">
-            <figcaption>Overall, citability and authority</figcaption>
-            <div class="chart-box"><canvas id="bench-bar" role="img" aria-label="Brand versus leader scores"></canvas></div>
+            <figcaption>综合得分、可引用性与权威度</figcaption>
+            <div class="chart-box"><canvas id="bench-bar" role="img" aria-label="品牌与行业标杆得分对比"></canvas></div>
           </figure>
           <figure class="chart">
-            <figcaption>Authority by platform</figcaption>
-            <div class="chart-box"><canvas id="bench-radar" role="img" aria-label="Brand versus leader platform radar"></canvas></div>
+            <figcaption>各平台权威度对比</figcaption>
+            <div class="chart-box"><canvas id="bench-radar" role="img" aria-label="品牌与行业标杆平台雷达图"></canvas></div>
           </figure>
         </div>
         <details class="data-table">
-          <summary>View as table</summary>
+          <summary>查看数据表</summary>
           <table id="bench-table"></table>
         </details>
       </div>
     </section>
 
-    <!-- 6. Actions -->
+    <!-- 6. 优化方案 -->
     <section class="card">
-      <h2>Top priority actions</h2>
+      <h2>逐项GEO优化方案（按优先级）</h2>
       <ol class="actions" id="actions"></ol>
     </section>
 
     <div class="report-footer">
-      <a class="button secondary" href="/">Assess another site</a>
-      <button class="button secondary" id="rerun" type="button">Re-run fresh audit</button>
+      <a class="button secondary" href="/">诊断其他网站</a>
+      <button class="button secondary" id="rerun" type="button">重新诊断</button>
     </div>
   </div>
 </div>

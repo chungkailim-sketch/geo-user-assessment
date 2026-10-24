@@ -138,7 +138,7 @@ def test_build_authority_with_claude_scores():
     expected = sum(scores[k] * w for k, w in PLATFORM_WEIGHTS.items())
     assert result["score"] == round(expected, 1)
     assert result["confidence"] == "full"
-    assert result["rating"] == "Moderate"
+    assert result["rating"] == "中等"
     wiki_row = next(p for p in result["platforms"] if p["key"] == "wikipedia")
     assert wiki_row["sources"][0].endswith("/wiki/Acme_Clean")
 
@@ -158,7 +158,7 @@ def test_claude_scores_are_clamped():
     assert parsed.reddit.score == 0
 
 
-@pytest.mark.parametrize("score,rating", [(90, "Dominant"), (75, "Strong"), (55, "Moderate"), (35, "Weak"), (5, "Minimal")])
+@pytest.mark.parametrize("score,rating", [(90, "领先"), (75, "较强"), (55, "中等"), (35, "较弱"), (5, "极弱")])
 def test_authority_rating(score, rating):
     assert authority_rating(score) == rating
 

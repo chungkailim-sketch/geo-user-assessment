@@ -28,7 +28,7 @@ TEXT_TYPES = HTML_TYPES + ("text/plain", "application/xml", "text/xml")
 BLOCKED_NETWORKS = tuple(
     ipaddress.ip_network(n) for n in ("2002::/16", "64:ff9b::/96", "64:ff9b:1::/48", "2001::/32")
 )
-UNREACHABLE_MESSAGE = "That website address can't be reached or isn't publicly accessible."
+UNREACHABLE_MESSAGE = "该网址无法访问，或不是可公开访问的网站。"
 
 
 class UnsafeURLError(ValueError):
@@ -43,7 +43,7 @@ class BlockedError(FetchError):
     """Raised when a site's bot protection refuses automated access (we never try to evade it)."""
 
     def __init__(self) -> None:
-        super().__init__("This site blocks automated analysis (bot protection), so it can't be assessed.")
+        super().__init__("该网站启用了反爬虫防护，拒绝自动化分析，暂无法诊断。")
 
 
 BLOCKED_STATUSES = {401, 403, 429}
@@ -76,22 +76,22 @@ def normalize_url(raw: str) -> str:
     """Add a scheme if missing and validate the URL's shape (no network access)."""
     candidate = raw.strip()
     if not candidate:
-        raise UnsafeURLError("Please enter a website URL.")
+        raise UnsafeURLError("请输入网站网址。")
     if "://" not in candidate:
         candidate = "https://" + candidate
     parsed = urlparse(candidate)
     if parsed.scheme.lower() not in ALLOWED_SCHEMES:
-        raise UnsafeURLError("Only http and https URLs are supported.")
+        raise UnsafeURLError("仅支持 http 和 https 网址。")
     if not parsed.hostname or "." not in parsed.hostname:
-        raise UnsafeURLError("That doesn't look like a valid website address.")
+        raise UnsafeURLError("网址格式不正确，请检查后重试。")
     if parsed.username or parsed.password:
-        raise UnsafeURLError("URLs with embedded credentials are not allowed.")
+        raise UnsafeURLError("不支持包含账号密码的网址。")
     try:
         port = parsed.port
     except ValueError as exc:
-        raise UnsafeURLError("Invalid port in URL.") from exc
+        raise UnsafeURLError("网址端口无效。") from exc
     if port not in ALLOWED_PORTS:
-        raise UnsafeURLError("Only standard web ports (80/443) are allowed.")
+        raise UnsafeURLError("仅支持标准网页端口（80/443）。")
     path = parsed.path or "/"
     return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, "", parsed.query, ""))
 
@@ -219,7 +219,7 @@ class SafeFetcher:
             async with asyncio.timeout(self.settings.fetch_deadline_seconds):
                 return await self._fetch(url, accept)
         except TimeoutError as exc:
-            raise FetchError("The site took too long to respond.") from exc
+            raise FetchError("网站响应超时。") from exc
 
     async def _fetch(self, url: str, accept: tuple[str, ...]) -> FetchResult:
         current = normalize_url(url)
@@ -232,24 +232,24 @@ class SafeFetcher:
                     if response.is_redirect:
                         location = response.headers.get("location", "")
                         if not location:
-                            raise FetchError("Redirect without a location header.")
+                            raise FetchError("网站重定向缺少目标地址。")
                         current = normalize_url(urljoin(current, location))
                         continue
                     return await self._read_response(current, response, accept)
             except httpx.TimeoutException as exc:
-                raise FetchError("The site took too long to respond.") from exc
+                raise FetchError("网站响应超时。") from exc
             except httpx.HTTPError as exc:
-                raise FetchError("Could not connect to the site.") from exc
-        raise FetchError("Too many redirects.")
+                raise FetchError("无法连接到该网站。") from exc
+        raise FetchError("网站重定向次数过多。")
 
     async def _read_response(self, url: str, response: httpx.Response, accept: tuple[str, ...]) -> FetchResult:
         content_type = response.headers.get("content-type", "").lower()
         if response.status_code in BLOCKED_STATUSES:
             raise BlockedError()
         if response.status_code >= 400:
-            raise FetchError(f"Site returned HTTP {response.status_code}.")
+            raise FetchError(f"网站返回 HTTP {response.status_code} 错误。")
         if accept and not any(t in content_type for t in accept):
-            raise FetchError("The page is not a web page (unsupported content type).")
+            raise FetchError("该地址不是网页（内容类型不受支持）。")
         body = await self._read_capped(response)
         text = body.decode(response.encoding or "utf-8", errors="replace")
         if any(t in content_type for t in HTML_TYPES) and looks_like_challenge(response.status_code, text):

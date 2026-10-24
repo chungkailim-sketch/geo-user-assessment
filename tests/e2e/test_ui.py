@@ -61,7 +61,8 @@ def test_assessment_flow(live_server, viewport):
         page.wait_for_selector("#report:not([hidden])", timeout=20000)
         assert page.text_content("#brand-name") == "Acme Clean"
         assert page.input_value("#industry-select") == "Smart Cleaning"
-        assert "Dyson" in page.text_content("#benchmark-title")
+        assert "戴森" in page.text_content("#benchmark-title")
+        assert page.text_content("#score-label") in ("优秀", "良好", "中等", "偏低", "亟需优化")
         for canvas in ("gauge", "cit-radar", "grade-bar", "platform-bar", "bench-bar", "bench-radar"):
             assert page.eval_on_selector(f"#{canvas}", "c => c.width > 0 && c.height > 0"), canvas
         assert page.locator("#actions li").count() == 5
@@ -73,7 +74,7 @@ def test_assessment_flow(live_server, viewport):
 
         page.select_option("#industry-select", "F&B")
         # A selector wait, not wait_for_function: the app's CSP (correctly) forbids string eval.
-        page.locator("#benchmark-title", has_text="Starbucks").wait_for(timeout=20000)
-        assert "couldn't assess Starbucks" in page.text_content("#benchmark-status")
+        page.locator("#benchmark-title", has_text="星巴克").wait_for(timeout=20000)
+        assert "暂时无法评估星巴克" in page.text_content("#benchmark-status")
         browser.close()
     assert not errors, errors

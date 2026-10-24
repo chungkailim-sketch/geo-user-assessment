@@ -76,7 +76,8 @@ Respond with ONLY a JSON object, no prose, in exactly this shape:
   "reddit": {{"score": int, "evidence": [str], "sources": [url]}},
   "linkedin": {{"score": int, "evidence": [str], "sources": [url]}},
   "other": {{"score": int, "evidence": [str], "sources": [url]}}}}
-Keep each evidence item under 25 words, at most 3 per platform, citing concrete numbers when found.
+Write every evidence item in Simplified Chinese (keep brand, platform and channel names as-is),
+under 40 characters each, at most 3 per platform, citing concrete numbers when found.
 """
 
 

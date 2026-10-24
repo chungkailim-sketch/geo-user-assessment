@@ -42,8 +42,8 @@ def test_readiness_formula_uses_required_weights():
     assert readiness_score(0, 0) == 0
 
 
-@pytest.mark.parametrize("score,label", [(90, "Excellent"), (85, "Excellent"), (70, "Good"), (60, "Moderate"),
-                                         (45, "Below average"), (39.9, "Needs attention")])
+@pytest.mark.parametrize("score,label", [(90, "优秀"), (85, "优秀"), (70, "良好"), (60, "中等"),
+                                         (45, "偏低"), (39.9, "亟需优化")])
 def test_readiness_labels(score, label):
     assert readiness_label(score) == label
 
@@ -60,8 +60,8 @@ def test_findings_flag_missing_content_and_weak_platforms():
 def test_findings_for_low_citability_and_empty_pages():
     findings = build_findings(citability_fixture(score=30, empty_pages=["https://a/x"]), authority_fixture())
     texts = " ".join(f["text"] for f in findings)
-    assert "below the 50-point threshold" in texts
-    assert "1 page(s)" in texts
+    assert "低于50分基准线" in texts
+    assert "1个页面" in texts
 
 
 def test_actions_ranked_by_potential_lift():
@@ -69,7 +69,7 @@ def test_actions_ranked_by_potential_lift():
     lifts = [a["potential_lift"] for a in actions]
     assert lifts == sorted(lifts, reverse=True)
     assert len(actions) == 5
-    assert actions[0]["area"].startswith(("Citability", "Authority"))
+    assert actions[0]["area"].startswith(("可引用性", "品牌权威度"))
 
 
 def test_compare_brand_with_leader():

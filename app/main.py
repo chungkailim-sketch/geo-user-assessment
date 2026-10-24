@@ -67,13 +67,13 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         await api_client.aclose()
         cache.close()
 
-    app = FastAPI(title="AI Readiness Score", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="AI搜索就绪度诊断", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.limiter = limiter
     app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
 
     @app.exception_handler(RateLimitExceeded)
     async def rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
-        return JSONResponse({"detail": "Too many requests. Please wait a minute and try again."}, status_code=429)
+        return JSONResponse({"detail": "请求过于频繁，请一分钟后再试。"}, status_code=429)
 
     @app.exception_handler(QueueFullError)
     async def queue_full(request: Request, exc: QueueFullError) -> JSONResponse:
@@ -103,7 +103,10 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
 
     @app.get("/api/industries")
     async def industries():
-        return [{"name": i.name, "leader": i.leader, "leader_url": i.leader_url} for i in load_industries()]
+        return [
+            {"name": i.name, "name_zh": i.name_zh, "leader": i.leader, "leader_zh": i.leader_zh, "leader_url": i.leader_url}
+            for i in load_industries()
+        ]
 
     @app.post("/api/audit")
     @limiter.limit(settings.rate_limit if settings.rate_limit != "off" else "1000/second")
@@ -113,7 +116,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         except UnsafeURLError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         if body.industry and get_industry(body.industry) is None:
-            raise HTTPException(status_code=400, detail="Unknown industry.")
+            raise HTTPException(status_code=400, detail="未知行业。")
         job_id = request.app.state.jobs.start(url, body.industry, refresh=body.refresh)
         return {"job_id": job_id, "results_url": f"/results/{job_id}"}
 
@@ -122,7 +125,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         _check_job_id(job_id)
         status = request.app.state.jobs.status(job_id)
         if status is None:
-            raise HTTPException(status_code=404, detail="Audit not found or expired.")
+            raise HTTPException(status_code=404, detail="未找到该诊断报告，或报告已过期。")
         return status
 
     class BenchmarkRequest(BaseModel):
@@ -134,7 +137,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
     async def rebenchmark(request: Request, body: BenchmarkRequest):
         benchmark = await request.app.state.jobs.rebenchmark(body.audit_id, body.industry)
         if benchmark is None:
-            raise HTTPException(status_code=404, detail="Audit or industry not found.")
+            raise HTTPException(status_code=404, detail="未找到该诊断报告或行业。")
         return benchmark
 
     return app
@@ -142,7 +145,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
 
 def _check_job_id(job_id: str) -> None:
     if not JOB_ID_PATTERN.match(job_id):
-        raise HTTPException(status_code=404, detail="Audit not found.")
+        raise HTTPException(status_code=404, detail="未找到该诊断报告。")
 
 
 app = create_app()

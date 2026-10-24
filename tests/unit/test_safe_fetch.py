@@ -97,7 +97,7 @@ async def test_fetch_limits_redirect_chain():
     def handler(request):
         return httpx.Response(302, headers={"location": "/again"})
 
-    with pytest.raises(FetchError, match="Too many redirects"):
+    with pytest.raises(FetchError, match="重定向次数过多"):
         await _fetcher(handler, max_redirects=2).fetch(f"http://{PUBLIC_IP}/")
 
 
@@ -105,7 +105,7 @@ async def test_fetch_rejects_non_html():
     def handler(request):
         return httpx.Response(200, content=b"%PDF", headers={"content-type": "application/pdf"})
 
-    with pytest.raises(FetchError, match="unsupported content type"):
+    with pytest.raises(FetchError, match="内容类型不受支持"):
         await _fetcher(handler).fetch(f"http://{PUBLIC_IP}/")
 
 
@@ -129,7 +129,7 @@ async def test_fetch_wraps_connection_errors():
     def handler(request):
         raise httpx.ConnectError("refused")
 
-    with pytest.raises(FetchError, match="connect"):
+    with pytest.raises(FetchError, match="无法连接"):
         await _fetcher(handler).fetch(f"http://{PUBLIC_IP}/")
 
 
@@ -137,7 +137,7 @@ async def test_fetch_wraps_timeouts():
     def handler(request):
         raise httpx.ReadTimeout("slow")
 
-    with pytest.raises(FetchError, match="too long"):
+    with pytest.raises(FetchError, match="超时"):
         await _fetcher(handler).fetch(f"http://{PUBLIC_IP}/")
 
 
@@ -146,7 +146,7 @@ async def test_fetch_reports_bot_protection_status(status):
     def handler(request):
         return httpx.Response(status, text="<html>wait</html>", headers={"content-type": "text/html"})
 
-    with pytest.raises(BlockedError, match="bot protection"):
+    with pytest.raises(BlockedError, match="反爬虫防护"):
         await _fetcher(handler).fetch(f"http://{PUBLIC_IP}/")
 
 
@@ -225,5 +225,5 @@ async def test_fetch_enforces_total_deadline():
 
     settings = Settings(per_host_delay_seconds=0, allow_private_hosts=False, fetch_deadline_seconds=0.1)
     client = httpx.AsyncClient(transport=httpx.MockTransport(slow_handler))
-    with pytest.raises(FetchError, match="too long"):
+    with pytest.raises(FetchError, match="超时"):
         await SafeFetcher(settings, client=client).fetch(f"http://{PUBLIC_IP}/")

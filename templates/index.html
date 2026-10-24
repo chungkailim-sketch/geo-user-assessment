@@ -1,25 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="hero">
-  <p class="eyebrow">Generative Engine Optimization</p>
-  <h1>How ready is your brand for AI search?</h1>
+  <p class="eyebrow">GEO · AI搜索优化</p>
+  <h1>你的品牌，AI看得见吗？</h1>
   <p class="lede">
-    Enter a website to see how likely ChatGPT, Claude, Perplexity and Gemini are to cite it and how
-    much authority it carries, then compare it with the leader in its industry.
+    输入官网网址，一键诊断品牌在豆包、DeepSeek、通义千问、Kimi、ChatGPT等AI大模型平台中被准确引用和推荐的潜力，并与所在行业的标杆品牌横向对比。
   </p>
 
   <form id="audit-form" class="audit-form" novalidate>
-    <label class="sr-only" for="url">Website URL</label>
+    <label class="sr-only" for="url">官网网址</label>
     <input id="url" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false"
-           placeholder="e.g. www.yourbrand.com" required maxlength="2048">
-    <label class="sr-only" for="industry">Industry</label>
+           placeholder="例如：www.yourbrand.com" required maxlength="2048">
+    <label class="sr-only" for="industry">所属行业</label>
     <select id="industry" name="industry">
-      <option value="">Auto-detect industry</option>
+      <option value="">自动识别行业</option>
       {% for industry in industries %}
-      <option value="{{ industry.name }}">{{ industry.name }}</option>
+      <option value="{{ industry.name }}">{{ industry.name_zh }}</option>
       {% endfor %}
     </select>
-    <button type="submit" id="submit">Assess</button>
+    <button type="submit" id="submit">立即诊断</button>
   </form>
   <p id="form-error" class="form-error" role="alert" hidden></p>
 </section>
@@ -27,22 +26,20 @@
 <section class="explainer">
   <div class="explainer-card">
     <div class="explainer-weight">55%</div>
-    <h2>Citability</h2>
-    <p>Can AI systems lift self-contained, fact-rich answers from your pages? We score every content block
-      for answer quality, self-containment, readability, statistics and original data.</p>
+    <h2>内容可引用性</h2>
+    <p>AI能否从你的网页中直接摘取完整、可信、有数据支撑的答案？我们逐段评估答案块质量、段落独立性、结构可读性、数据密度与原创性。</p>
   </div>
   <div class="explainer-card">
     <div class="explainer-weight">45%</div>
-    <h2>Authority</h2>
-    <p>Do AI models recognise your brand as an entity? We measure your presence on YouTube, Reddit, Wikipedia,
-      LinkedIn and news/review sites, the sources AI assistants rely on.</p>
+    <h2>品牌权威度</h2>
+    <p>AI大模型是否把你的品牌识别为可信实体？我们追踪品牌在YouTube、Reddit、维基百科、领英及新闻点评等AI常用引用来源中的提及与存在感。</p>
   </div>
   <div class="explainer-card">
-    <div class="explainer-weight">vs</div>
-    <h2>Industry leader</h2>
+    <div class="explainer-weight">VS</div>
+    <h2>行业标杆</h2>
     <ul class="leaders">
       {% for industry in industries %}
-      <li><span>{{ industry.name }}</span><strong>{{ industry.leader }}</strong></li>
+      <li><span>{{ industry.name_zh }}</span><strong>{{ industry.leader_zh }}</strong></li>
       {% endfor %}
     </ul>
   </div>

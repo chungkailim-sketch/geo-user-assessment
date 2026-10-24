@@ -13,50 +13,53 @@ from app.scoring.wikipedia import WikiPresence, score_wikipedia
 
 PLATFORM_WEIGHTS = {"youtube": 0.25, "reddit": 0.25, "wikipedia": 0.20, "linkedin": 0.15, "other": 0.15}
 PLATFORM_LABELS = {
-    "youtube": "YouTube", "reddit": "Reddit", "wikipedia": "Wikipedia / Wikidata",
-    "linkedin": "LinkedIn", "other": "Other (news, reviews, Quora, GitHub)",
+    "youtube": "YouTube", "reddit": "Reddit", "wikipedia": "维基百科 / Wikidata",
+    "linkedin": "领英 LinkedIn", "other": "其他信源（新闻、点评、问答、GitHub）",
+}
+PLATFORM_SHORT_LABELS = {
+    "youtube": "YouTube", "reddit": "Reddit", "wikipedia": "维基百科", "linkedin": "领英", "other": "其他信源",
 }
 
 # Recommendation lists from the GEO skill's scripts/brand_scanner.py.
 RECOMMENDATIONS = {
     "youtube": [
-        "Publish educational/tutorial content related to your category on an official YouTube channel",
-        "Encourage customers and creators to make review/demo videos",
-        "Add timestamps, chapters and reviewed transcripts to improve AI parseability",
+        "在官方YouTube频道持续发布与品类相关的教程和科普内容",
+        "鼓励用户与创作者发布测评、演示视频",
+        "为视频添加时间戳、章节和经校对的字幕，便于AI解析",
     ],
     "reddit": [
-        "Participate authentically in relevant subreddits (no marketing speak)",
-        "Create an official Reddit account for customer support and AMAs",
-        "Answer category questions where buyers ask for recommendations",
+        "在相关Subreddit中真诚参与讨论，避免营销腔",
+        "开设官方Reddit账号，用于客户支持与AMA问答",
+        "在用户求推荐的帖子中解答品类问题",
     ],
     "wikipedia": [
-        "Ensure a complete Wikidata entry, including the official website (P856)",
-        "Build notability through independent press coverage, then pursue a Wikipedia article",
-        "Add sameAs links in Organization schema pointing to Wikipedia/Wikidata",
+        "完善Wikidata条目，包括官方网站（P856）等关键属性",
+        "通过独立媒体报道积累知名度，再争取建立维基百科词条",
+        "在Organization结构化数据中添加指向维基百科/Wikidata的sameAs链接",
     ],
     "linkedin": [
-        "Optimise the LinkedIn company page and post thought leadership regularly",
-        "Have leadership and employees publish long-form LinkedIn articles",
-        "Add the LinkedIn company URL to the schema sameAs property",
+        "优化领英公司主页，定期发布行业洞察内容",
+        "推动管理层与员工发布领英长文",
+        "在结构化数据的sameAs属性中添加领英公司主页链接",
     ],
     "other": [
-        "Earn recent coverage in major news and trade publications",
-        "Maintain review profiles (Trustpilot, G2) and encourage customer reviews",
-        "Answer category questions on Quora and industry forums",
+        "争取主流新闻与行业媒体的近期报道",
+        "维护点评平台（Trustpilot、G2）资料并鼓励用户评价",
+        "在Quora与行业论坛中解答品类问题",
     ],
 }
 
 
 def authority_rating(score: float) -> str:
     if score >= 85:
-        return "Dominant"
+        return "领先"
     if score >= 70:
-        return "Strong"
+        return "较强"
     if score >= 50:
-        return "Moderate"
+        return "中等"
     if score >= 30:
-        return "Weak"
-    return "Minimal"
+        return "较弱"
+    return "极弱"
 
 
 def youtube_band(subscribers: int) -> int:
@@ -76,38 +79,38 @@ def heuristic_scores(signals: BrandSignals, wiki: WikiPresence, wiki_score: int)
         on_site, on_wikidata = signals.has(platform), bool(accounts.get(platform))
         evidence = []
         if on_site:
-            evidence.append(f"Official {found} linked from the website")
+            evidence.append(f"官网已链接官方{found}")
         if on_wikidata:
-            evidence.append(f"Official {found} recorded on Wikidata")
+            evidence.append(f"Wikidata已收录官方{found}")
         if on_site or on_wikidata:
             score = 55 if notable else 35
         else:
             score = 25 if notable else 5
-            evidence.append(f"No official {found} found on the website or Wikidata")
+            evidence.append(f"官网及Wikidata均未发现官方{found}")
         return {"score": score, "evidence": evidence, "sources": signals.profiles.get(platform, [])[:3]}
 
-    youtube = linked("youtube", "YouTube channel")
+    youtube = linked("youtube", "YouTube频道")
     if wiki.youtube_subscribers:
         youtube["score"] = max(youtube["score"], youtube_band(wiki.youtube_subscribers))
-        youtube["evidence"].append(f"{wiki.youtube_subscribers:,} YouTube subscribers (Wikidata)")
+        youtube["evidence"].append(f"YouTube订阅数 {wiki.youtube_subscribers:,}（来源：Wikidata）")
 
     reddit_has = signals.has("reddit") or bool(accounts.get("reddit"))
     reddit = {
         "score": (50 if notable else 10) + (10 if reddit_has else 0),
-        "evidence": ["Reddit discussion volume not verified (web search unavailable)"]
-        + (["Official subreddit or Reddit account found"] if reddit_has else []),
+        "evidence": ["未能核实Reddit讨论量（联网搜索不可用）"]
+        + (["已发现官方Subreddit或Reddit账号"] if reddit_has else []),
         "sources": signals.profiles.get("reddit", [])[:3],
     }
     other_platforms = {p for p in OTHER_PLATFORMS if signals.has(p)} | {p for p in ("x", "instagram", "facebook") if accounts.get(p)}
     other = {
         "score": min(80, 10 + 8 * len(other_platforms) + (15 if notable else 0)),
-        "evidence": [f"{len(other_platforms)} other platform profile(s) found: {', '.join(sorted(other_platforms)) or 'none'}"],
+        "evidence": [f"发现{len(other_platforms)}个其他平台官方账号：{'、'.join(sorted(other_platforms)) or '无'}"],
         "sources": [url for p in ("instagram", "x", "facebook", "tiktok") for url in signals.profiles.get(p, [])[:1]],
     }
     return {
         "youtube": youtube,
         "reddit": reddit,
-        "linkedin": linked("linkedin", "LinkedIn company page"),
+        "linkedin": linked("linkedin", "领英公司主页"),
         "other": other,
     }
 
@@ -120,9 +123,9 @@ def build_authority(
     wiki_score, wiki_reason = score_wikipedia(wiki)
     wiki_evidence = [wiki_reason]
     if wiki.article_title:
-        wiki_evidence.append(f"English Wikipedia article: {wiki.article_title} ({wiki.article_length:,} bytes)")
+        wiki_evidence.append(f"英文维基百科词条：{wiki.article_title}（{wiki.article_length:,} 字节）")
     if wiki.domain_citations:
-        wiki_evidence.append(f"Website cited in {wiki.domain_citations} Wikipedia article(s)")
+        wiki_evidence.append(f"官网被{wiki.domain_citations}篇维基百科词条引用")
     wiki_sources = []
     if wiki.article_title:
         wiki_sources.append("https://en.wikipedia.org/wiki/" + wiki.article_title.replace(" ", "_"))
@@ -142,6 +145,7 @@ def build_authority(
         {
             "key": name,
             "label": PLATFORM_LABELS[name],
+            "short_label": PLATFORM_SHORT_LABELS[name],
             "weight": weight,
             "score": platforms[name]["score"],
             "weighted": round(platforms[name]["score"] * weight, 1),

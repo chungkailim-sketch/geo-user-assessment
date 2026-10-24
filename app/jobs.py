@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 AUDIT_TTL_SECONDS = 24 * 3600
 FINISHED_JOB_TTL_SECONDS = 3600
-GENERIC_ERROR = "Something went wrong while auditing this site. Please try again."
+GENERIC_ERROR = "诊断过程中出现异常，请稍后重试。"
 
 
 class QueueFullError(RuntimeError):
@@ -28,7 +28,7 @@ class QueueFullError(RuntimeError):
 class JobState:
     job_id: str
     status: str = "queued"
-    stage: str = "Queued"
+    stage: str = "排队中"
     progress: int = 0
     error: str | None = None
     updated: float = field(default_factory=time.monotonic)
@@ -62,7 +62,7 @@ class JobManager:
     def start(self, url: str, industry: str | None, refresh: bool = False) -> str:
         self._sweep()
         if self.active_count() >= self.max_active:
-            raise QueueFullError("The service is busy right now. Please try again in a minute.")
+            raise QueueFullError("当前诊断请求较多，请一分钟后再试。")
         job_id = uuid.uuid4().hex
         self.jobs[job_id] = JobState(job_id=job_id)
         task = asyncio.create_task(self._run(job_id, url, industry, refresh))
@@ -73,7 +73,7 @@ class JobManager:
     def status(self, job_id: str) -> JobStatus | None:
         stored = self.cache.get(f"audit:{job_id}", AUDIT_TTL_SECONDS)
         if stored is not None:
-            return JobStatus(job_id=job_id, status="done", stage="Complete", progress=100, result=stored)
+            return JobStatus(job_id=job_id, status="done", stage="诊断完成", progress=100, result=stored)
         state = self.jobs.get(job_id)
         if state is None:
             return None
@@ -85,23 +85,23 @@ class JobManager:
             self._update(job_id, status="running", stage=stage, progress=pct)
 
         try:
-            await progress("Starting audit", 5)
+            await progress("开始品牌诊断", 5)
             brand = await self.auditor.audit(url, progress, refresh=refresh)
             industry = get_industry(industry_name) or get_industry(brand["industry"]["detected"])
             benchmark = None
             if industry is not None:
-                await progress(f"Benchmarking against {industry.leader}", 90)
+                await progress(f"正在与行业标杆{industry.leader_zh}对比", 90)
                 benchmark = await self.benchmark_for(brand, industry)
             self.cache.set(f"audit:{job_id}", self._finalise(job_id, brand, industry, benchmark))
-            self._update(job_id, status="done", stage="Complete", progress=100)
+            self._update(job_id, status="done", stage="诊断完成", progress=100)
         except (UnsafeURLError, FetchError) as exc:
             # These messages are written by us and never contain internal details.
-            self._update(job_id, status="error", stage="Failed", error=str(exc))
+            self._update(job_id, status="error", stage="诊断失败", error=str(exc))
         except TimeoutError:
-            self._update(job_id, status="error", stage="Failed", error="The assessment took too long. Please try again.")
+            self._update(job_id, status="error", stage="诊断失败", error="诊断耗时过长，请稍后重试。")
         except Exception:
             log.exception("Audit job %s failed", job_id)
-            self._update(job_id, status="error", stage="Failed", error=GENERIC_ERROR)
+            self._update(job_id, status="error", stage="诊断失败", error=GENERIC_ERROR)
 
     async def benchmark_for(self, brand: dict, industry: Industry) -> dict:
         if industry.is_leader(brand["domain"]):
@@ -113,7 +113,7 @@ class JobManager:
             return compare(brand, None, industry, reason=str(exc))
         except Exception:
             log.exception("Leader audit for %s failed", industry.leader)
-            return compare(brand, None, industry, reason="The leader's site could not be assessed right now.")
+            return compare(brand, None, industry, reason="暂时无法评估该行业标杆网站。")
         return compare(brand, leader, industry)
 
     def _finalise(self, job_id: str, brand: dict, industry: Industry | None, benchmark: dict | None) -> dict:
@@ -124,6 +124,7 @@ class JobManager:
                 **brand["industry"],
                 "selected": industry.name if industry else None,
                 "options": [i.name for i in load_industries()],
+                "option_labels": {i.name: i.name_zh for i in load_industries()},
             },
             "benchmark": benchmark,
         }

@@ -18,6 +18,8 @@ class Industry:
     leader_url: str
     keywords: tuple[str, ...]
     aliases: tuple[str, ...] = ()
+    name_zh: str = ""
+    leader_zh: str = ""
 
     @property
     def leader_domain(self) -> str:
@@ -34,6 +36,7 @@ def load_industries() -> tuple[Industry, ...]:
         Industry(
             i["name"], i["leader"], i["leader_url"],
             tuple(k.lower() for k in i["keywords"]), tuple(i.get("aliases", [])),
+            i.get("name_zh", i["name"]), i.get("leader_zh", i["leader"]),
         )
         for i in data["industries"]
     )

@@ -29,7 +29,7 @@ async def test_queue_cap_and_timeout_message(tmp_path):
     auditor.release.set()
     await asyncio.gather(*jobs.tasks)
     status = jobs.status(job_id)
-    assert status.status == "error" and "too long" in status.error
+    assert status.status == "error" and "耗时过长" in status.error
 
 
 async def test_progress_never_moves_backwards(tmp_path):

@@ -114,7 +114,7 @@ def test_pages_render_with_security_headers(make_client):
     with make_client() as client:
         index = client.get("/")
         assert index.status_code == 200
-        assert "Smart Cleaning" in index.text and "Dyson" in index.text
+        assert "智能清洁" in index.text and "戴森" in index.text and 'lang="zh-CN"' in index.text
         assert "default-src 'self'" in index.headers["content-security-policy"]
         assert index.headers["x-content-type-options"] == "nosniff"
         results = client.get("/results/" + "a" * 32)

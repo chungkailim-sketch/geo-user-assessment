@@ -22,8 +22,21 @@
         "motor",
         "motors",
         "engine",
-        "drivetrain"
-      ]
+        "drivetrain",
+        "汽车",
+        "车型",
+        "新能源汽车",
+        "电动车",
+        "混动",
+        "试驾",
+        "4s店",
+        "经销商",
+        "轿车",
+        "越野车",
+        "续航"
+      ],
+      "name_zh": "汽车",
+      "leader_zh": "丰田"
     },
     {
       "name": "Smart Phone",
@@ -42,8 +55,18 @@
         "pixel",
         "handset",
         "camera phone",
-        "foldable"
-      ]
+        "foldable",
+        "手机",
+        "智能手机",
+        "折叠屏",
+        "5g手机",
+        "影像旗舰",
+        "安卓",
+        "鸿蒙",
+        "移动终端"
+      ],
+      "name_zh": "智能手机",
+      "leader_zh": "苹果"
     },
     {
       "name": "Consumer Electronics",
@@ -64,12 +87,25 @@
         "soundbar",
         "earbuds",
         "laptop",
-        "monitor"
+        "monitor",
+        "电视",
+        "耳机",
+        "音响",
+        "相机",
+        "数码",
+        "游戏机",
+        "笔记本",
+        "显示器",
+        "降噪",
+        "音箱",
+        "消费电子"
       ],
       "aliases": [
         "sony.com",
         "sony.co.jp"
-      ]
+      ],
+      "name_zh": "消费电子",
+      "leader_zh": "索尼"
     },
     {
       "name": "Smart Home IoT",
@@ -88,8 +124,19 @@
         "matter",
         "zigbee",
         "hub",
-        "security camera"
-      ]
+        "security camera",
+        "智能家居",
+        "全屋智能",
+        "物联网",
+        "智能门锁",
+        "智能家电",
+        "网关",
+        "传感器",
+        "米家",
+        "智能互联"
+      ],
+      "name_zh": "智能家居 IoT",
+      "leader_zh": "三星"
     },
     {
       "name": "Smart Cleaning",
@@ -108,12 +155,24 @@
         "suction",
         "floor care",
         "wet and dry",
-        "hair dryer"
+        "hair dryer",
+        "扫地机器人",
+        "吸尘器",
+        "洗地机",
+        "拖地",
+        "吸力",
+        "清洁",
+        "空气净化器",
+        "除螨",
+        "无线吸尘器",
+        "扫拖"
       ],
       "aliases": [
         "dyson.com.sg",
         "dyson.co.uk"
-      ]
+      ],
+      "name_zh": "智能清洁",
+      "leader_zh": "戴森"
     },
     {
       "name": "F&B",
@@ -136,8 +195,22 @@
         "espresso",
         "dining",
         "burger",
-        "pizza"
-      ]
+        "pizza",
+        "咖啡",
+        "茶饮",
+        "餐厅",
+        "菜单",
+        "饮品",
+        "外卖",
+        "门店",
+        "烘焙",
+        "奶茶",
+        "拿铁",
+        "美食",
+        "点单"
+      ],
+      "name_zh": "餐饮",
+      "leader_zh": "星巴克"
     },
     {
       "name": "Culture / Lifestyle",
@@ -159,8 +232,21 @@
         "attractions",
         "resort",
         "accommodation",
-        "trip"
-      ]
+        "trip",
+        "旅行",
+        "酒店",
+        "民宿",
+        "机票",
+        "度假",
+        "旅游",
+        "景点",
+        "住宿",
+        "出行",
+        "文旅",
+        "生活方式"
+      ],
+      "name_zh": "文旅生活",
+      "leader_zh": "Booking.com"
     }
   ]
 }

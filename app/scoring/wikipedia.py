@@ -75,18 +75,18 @@ def score_wikipedia(p: WikiPresence) -> tuple[int, str]:
     has_article = bool(p.article_title)
     has_wikidata = bool(p.wikidata_id)
     if has_article and p.article_length >= 40000 and p.wikidata_claims >= 50 and p.domain_citations >= 5:
-        return 95, "Detailed article, rich Wikidata entry, site cited across Wikipedia"
+        return 95, "词条内容详实、Wikidata数据完整，且官网被维基百科广泛引用"
     if has_article and p.article_length >= 20000 and has_wikidata:
-        return 85 if p.domain_citations >= 3 else 78, "Substantial article with Wikidata entry"
+        return 85 if p.domain_citations >= 3 else 78, "词条内容充实，并有Wikidata条目"
     if has_article and has_wikidata and (p.article_length >= 8000 or p.mention_hits >= 2):
-        return 70, "Article exists with Wikidata entry and mentions in other articles"
+        return 70, "已有词条与Wikidata条目，并在其他词条中被提及"
     if has_article:
-        return 55, "Article exists (stub/start) with limited supporting signals"
+        return 55, "已有词条（小作品/初级），配套信号有限"
     if p.domain_citations >= 1 or p.mention_hits >= 3:
-        return 40 if has_wikidata else 35, "No article, but brand is cited or mentioned on Wikipedia"
+        return 40 if has_wikidata else 35, "暂无词条，但品牌在维基百科中被引用或提及"
     if has_wikidata or p.mention_hits >= 1:
-        return 20, "Passing references only (Wikidata entry or a few mentions)"
-    return 0, "No Wikipedia or Wikidata presence found"
+        return 20, "仅有零星提及（Wikidata条目或少量提及）"
+    return 0, "未发现维基百科或Wikidata收录"
 
 
 class WikipediaChecker:
