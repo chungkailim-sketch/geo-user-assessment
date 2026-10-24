@@ -10,12 +10,13 @@ from app.audit import Auditor
 from app.benchmark import compare
 from app.cache import JsonCache
 from app.fetch.safe_fetch import FetchError, UnsafeURLError
-from app.industry import Industry, get_industry, load_industries
+from app.industry import Industry, get_industry, load_industries, resolve_industry
 from app.models import JobStatus
 
 log = logging.getLogger(__name__)
 
 AUDIT_TTL_SECONDS = 24 * 3600
+AUDIT_KEY = "audit:v4:"  # bump with SITE_KEY when result wording/shape changes
 FINISHED_JOB_TTL_SECONDS = 3600
 GENERIC_ERROR = "诊断过程中出现异常，请稍后重试。"
 
@@ -71,7 +72,7 @@ class JobManager:
         return job_id
 
     def status(self, job_id: str) -> JobStatus | None:
-        stored = self.cache.get(f"audit:{job_id}", AUDIT_TTL_SECONDS)
+        stored = self.cache.get(f"{AUDIT_KEY}{job_id}", AUDIT_TTL_SECONDS)
         if stored is not None:
             return JobStatus(job_id=job_id, status="done", stage="诊断完成", progress=100, result=stored)
         state = self.jobs.get(job_id)
@@ -87,12 +88,13 @@ class JobManager:
         try:
             await progress("开始品牌诊断", 5)
             brand = await self.auditor.audit(url, progress, refresh=refresh)
-            industry = get_industry(industry_name) or get_industry(brand["industry"]["detected"])
+            custom = brand["industry"].get("custom")
+            industry = get_industry(industry_name) or resolve_industry(brand["industry"]["detected"], custom)
             benchmark = None
             if industry is not None:
                 await progress(f"正在与行业标杆{industry.leader_zh}对比", 90)
                 benchmark = await self.benchmark_for(brand, industry)
-            self.cache.set(f"audit:{job_id}", self._finalise(job_id, brand, industry, benchmark))
+            self.cache.set(f"{AUDIT_KEY}{job_id}", self._finalise(job_id, brand, industry, benchmark))
             self._update(job_id, status="done", stage="诊断完成", progress=100)
         except (UnsafeURLError, FetchError) as exc:
             # These messages are written by us and never contain internal details.
@@ -117,32 +119,37 @@ class JobManager:
         return compare(brand, leader, industry)
 
     def _finalise(self, job_id: str, brand: dict, industry: Industry | None, benchmark: dict | None) -> dict:
+        options = [i.name for i in load_industries()]
+        labels = {i.name: i.name_zh for i in load_industries()}
+        if custom := brand["industry"].get("custom"):  # AI-identified industry outside the catalogue
+            options = [custom["name"], *options]
+            labels = {**labels, custom["name"]: custom["name_zh"]}
         return {
             **brand,
             "audit_id": job_id,
             "industry": {
                 **brand["industry"],
                 "selected": industry.name if industry else None,
-                "options": [i.name for i in load_industries()],
-                "option_labels": {i.name: i.name_zh for i in load_industries()},
+                "options": options,
+                "option_labels": labels,
             },
             "benchmark": benchmark,
         }
 
     async def rebenchmark(self, audit_id: str, industry_name: str) -> dict | None:
         """Compare an existing audit with another industry's leader (serialised per audit)."""
-        industry = get_industry(industry_name)
-        if industry is None:
-            return None
         lock = self._bench_locks.setdefault(audit_id, asyncio.Lock())
         try:
             async with lock:
-                stored = self.cache.get(f"audit:{audit_id}", AUDIT_TTL_SECONDS)
+                stored = self.cache.get(f"{AUDIT_KEY}{audit_id}", AUDIT_TTL_SECONDS)
                 if stored is None:
+                    return None
+                industry = resolve_industry(industry_name, stored["industry"].get("custom"))
+                if industry is None:
                     return None
                 benchmark = await self.benchmark_for(stored, industry)
                 updated = {**stored, "industry": {**stored["industry"], "selected": industry.name}, "benchmark": benchmark}
-                self.cache.set(f"audit:{audit_id}", updated, keep_created=True)
+                self.cache.set(f"{AUDIT_KEY}{audit_id}", updated, keep_created=True)
                 return benchmark
         finally:
             if not lock.locked():

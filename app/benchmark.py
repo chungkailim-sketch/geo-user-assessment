@@ -24,6 +24,7 @@ def compare(brand: dict, leader: dict | None, industry: Industry, reason: str | 
         "leader": industry.leader,
         "leader_zh": industry.leader_zh,
         "leader_url": industry.leader_url,
+        "custom": industry.custom,
         "is_leader": industry.is_leader(brand["domain"]),
     }
     if base["is_leader"]:

@@ -50,7 +50,7 @@
     };
   }
 
-  const FONT = 'system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Segoe UI", sans-serif';
+  const FONT = '"Be Vietnam Pro", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif';
 
   const CJK = /[㐀-鿿]/;
 

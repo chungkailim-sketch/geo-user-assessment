@@ -3,48 +3,20 @@
 <section class="hero">
   <p class="eyebrow">GEO · AI搜索优化</p>
   <h1>你的品牌，AI看得见吗？</h1>
-  <p class="lede">
-    输入官网网址，一键诊断品牌在豆包、DeepSeek、通义千问、Kimi、ChatGPT等AI大模型平台中被准确引用和推荐的潜力，并与所在行业的标杆品牌横向对比。
-  </p>
+  <p class="lede">输入品牌官网，一键诊断品牌在AI大模型平台中被准确引用和推荐的潜力，并与行业标杆横向对比。</p>
 
   <form id="audit-form" class="audit-form" novalidate>
     <label class="sr-only" for="url">官网网址</label>
-    <input id="url" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false"
-           placeholder="例如：www.yourbrand.com" required maxlength="2048">
-    <label class="sr-only" for="industry">所属行业</label>
-    <select id="industry" name="industry">
-      <option value="">自动识别行业</option>
-      {% for industry in industries %}
-      <option value="{{ industry.name }}">{{ industry.name_zh }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit" id="submit">立即诊断</button>
+    <input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
+           value="https://www..com" required maxlength="2048" aria-describedby="url-hint">
+    <button type="submit" id="submit" class="submit-round" aria-label="立即诊断">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </form>
+  <p id="url-hint" class="hint">只需在 www. 与 .com 之间输入公司名称，例如 https://www.<strong>dyson</strong>.com</p>
   <p id="form-error" class="form-error" role="alert" hidden></p>
-</section>
-
-<section class="explainer">
-  <div class="explainer-card">
-    <div class="explainer-weight">55%</div>
-    <h2>内容可引用性</h2>
-    <p>AI能否从你的网页中直接摘取完整、可信、有数据支撑的答案？我们逐段评估答案块质量、段落独立性、结构可读性、数据密度与原创性。</p>
-  </div>
-  <div class="explainer-card">
-    <div class="explainer-weight">45%</div>
-    <h2>品牌权威度</h2>
-    <p>AI大模型是否把你的品牌识别为可信实体？我们追踪品牌在YouTube、Reddit、维基百科、领英及新闻点评等AI常用引用来源中的提及与存在感。</p>
-  </div>
-  <div class="explainer-card">
-    <div class="explainer-weight">VS</div>
-    <h2>行业标杆</h2>
-    <ul class="leaders">
-      {% for industry in industries %}
-      <li><span>{{ industry.name_zh }}</span><strong>{{ industry.leader_zh }}</strong></li>
-      {% endfor %}
-    </ul>
-  </div>
 </section>
 {% endblock %}
 {% block scripts %}
-<script src="/static/js/index.js" defer></script>
+<script src="/static/js/index.js?v={{ asset_v }}" defer></script>
 {% endblock %}

@@ -1,4 +1,6 @@
-# AI Readiness Score
+# CBGA GEO Readiness Assessment
+
+**Design:** follows the Ruder Finn brand (ruderfinn.com). It uses the Be Vietnam Pro typeface, RF green `#2da44a` headlines with tight tracking, pill-shaped inputs and buttons, a lime-to-green gradient (`#aaca43` → `#2da571`) and the rf. GEO logo. The theme is light only, like the RF site. Chart colours (green `#27933a` for the brand, deep yellow `#e8a200` for the leader) passed the colour-vision checks. Every report ends with a fixed PR and media strategy recommendation.
 
 A web app that scores how ready a brand's website is for AI search (ChatGPT, Claude, Perplexity, Gemini) and benchmarks it against the leader in its industry.
 
@@ -31,6 +33,10 @@ Score labels: 85+ Excellent · 70–84 Good · 55–69 Moderate · 40–54 Below
 
 The industry is detected automatically and the user can change it on the results page. Leaders are edited in `config/industries.json`.
 
+With `ANTHROPIC_API_KEY` set, Claude classifies every brand (a leader's own domain is still matched directly). If none of the seven categories fits, for example a bank or an airline, Claude names the brand's actual industry and that industry's global leader. The leader's URL is validated and reduced to its homepage, then the leader is audited like any other site. The AI-identified industry is added to the dropdown alongside the seven defaults. Without a key, industries are matched by keywords only.
+
+A **术语表** (glossary) panel opens from the header or from the ⓘ buttons on the results page. It covers the score ranges (overall, passage grades, platform bands), the industry categories, and definitions of the terms used, which follow the GEO skill.
+
 ## How Authority is measured
 
 1. **Wikipedia/Wikidata (always, deterministic).** The brand is matched to its Wikidata item through the item's *official website* (P856), so `apple.com` resolves to Apple Inc. and not the fruit. We also read the article size, how many Wikipedia articles cite the domain, and the official social accounts and YouTube subscriber counts recorded on Wikidata.
@@ -48,6 +54,18 @@ python -m app.cli audit https://www.example.com   # one audit from the terminal
 ```
 
 Or with Docker: `docker build -t ai-readiness . && docker run -p 8000:8000 --env-file .env ai-readiness`
+
+### Deploy to Railway
+
+The repo includes `railway.json`, which builds the Dockerfile and health-checks `/healthz`. The container listens on Railway's `$PORT`. Set these service variables:
+
+| Variable | Value |
+|---|---|
+| `ANTHROPIC_API_KEY` | your key (leave empty to run in limited mode) |
+| `CLAUDE_MODEL` | `claude-opus-5-5` |
+| `TRUST_PROXY_HEADERS` | `true`, so rate limits use the real client IP behind Railway's proxy |
+
+The SQLite cache lives in the container, so it resets on every deploy. That's harmless, because leader audits are re-scored on first use.
 
 Results are cached in SQLite (`data/cache.sqlite3`): brand audits for 24 h, leader audits for 7 days. Use "Re-run fresh audit" on the results page to bypass the cache.
 

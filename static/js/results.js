@@ -10,6 +10,7 @@
     "leader domain": "标杆官网识别",
     keywords: "关键词识别",
     "ai classification": "AI识别",
+    "ai custom": "AI识别 · 新行业",
     ambiguous: "关键词识别（待确认）",
     none: "未识别",
   };
@@ -76,7 +77,7 @@
     report = result;
     $("loading").hidden = true;
     $("report").hidden = false;
-    document.title = result.brand_name + " · AI搜索就绪度诊断报告";
+    document.title = result.brand_name + " · CBGA GEO Readiness Assessment";
     renderSummary(result);
     renderComponents(result);
     renderCitability(result.citability);
@@ -100,8 +101,10 @@
     const select = $("industry-select");
     select.replaceChildren(el("option", { value: "", text: "选择行业…" }));
     const labels = r.industry.option_labels || {};
+    const customName = r.industry.custom ? r.industry.custom.name : null;
     r.industry.options.forEach((name) => {
-      const option = el("option", { value: name, text: labels[name] || name });
+      const text = (labels[name] || name) + (name === customName ? "（AI识别）" : "");
+      const option = el("option", { value: name, text: text });
       if (name === r.industry.selected) option.selected = true;
       select.appendChild(option);
     });
@@ -238,11 +241,17 @@
   }
 
   function renderActions(actions) {
-    $("actions").replaceChildren(...actions.map((a) => el("li", {}, [
-      el("strong", { text: a.area + "（当前 " + Math.round(a.current) + "/100）" }),
-      el("span", { text: a.action + " " }),
-      el("span", { className: "lift", text: "预计最多提升 +" + fmt(a.potential_lift) + " 分" }),
-    ])));
+    $("actions").replaceChildren(...actions.map((a) => a.kind === "strategy"
+      ? el("li", { className: "strategy" }, [
+          el("span", { className: "strategy-tag", text: "核心策略建议" }),
+          el("strong", { text: a.area }),
+          el("span", { text: a.action }),
+        ])
+      : el("li", {}, [
+          el("strong", { text: a.area + "（当前 " + Math.round(a.current) + "/100）" }),
+          el("span", { text: a.action + " " }),
+          el("span", { className: "lift", text: "预计最多提升 +" + fmt(a.potential_lift) + " 分" }),
+        ])));
   }
 
   async function rebenchmark(industry) {
@@ -268,11 +277,14 @@
 
   $("rerun").addEventListener("click", async () => {
     $("rerun").disabled = true;
+    // An AI-identified industry is re-detected on re-run; only catalogue industries can be pinned.
+    const custom = report.industry.custom;
+    const pinned = custom && report.industry.selected === custom.name ? null : report.industry.selected;
     try {
       const response = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: report.url, industry: report.industry.selected, refresh: true }),
+        body: JSON.stringify({ url: report.url, industry: pinned, refresh: true }),
       });
       const data = await response.json();
       if (response.ok) window.location.assign(data.results_url);

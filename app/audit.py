@@ -15,7 +15,7 @@ from app.fetch.safe_fetch import SafeFetcher, site_root
 from app.industry import detect_industry, industry_for_leader_domain, load_industries
 from app.scoring.authority import build_authority
 from app.scoring.citability import analyze_site
-from app.scoring.claude_authority import assess_authority, classify_industry
+from app.scoring.claude_authority import assess_authority, identify_industry
 from app.scoring.readiness import (
     AUTHORITY_WEIGHT,
     CITABILITY_WEIGHT,
@@ -30,7 +30,7 @@ from app.scoring.wikipedia import WikipediaChecker
 log = logging.getLogger(__name__)
 
 Progress = Callable[[str, int], Awaitable[None]]
-SITE_KEY = "site:v2:"  # bump when result wording/shape changes so stale cache entries are ignored
+SITE_KEY = "site:v4:"  # bump when result wording/shape changes so stale cache entries are ignored
 DEGRADED_NOTE = "部分数据源暂时不可用，本次诊断结果可能不完整（未写入缓存）。"
 
 
@@ -152,12 +152,20 @@ class Auditor:
         }
 
     async def _detect_industry(self, domain: str, signals: BrandSignals, citability: dict) -> dict:
+        """Leader domains are definitive; otherwise Claude classifies (and may name an industry
+        outside the catalogue), with keyword matching as the fallback when Claude is unavailable."""
         text = _industry_text(signals, citability)
         detection = detect_industry(domain, text)
-        detected, method = (detection.industry, detection.method) if detection else (None, "none")
-        if method in ("ambiguous", "none") and self.claude is not None:
-            options = [i.name for i in load_industries()]
-            answer = await classify_industry(self.claude, self.settings.claude_model, options, text)
+        if detection and detection.method == "leader domain":
+            return {"detected": detection.industry, "method": detection.method, "custom": None}
+        if self.claude is not None:
+            catalogue = [i.to_dict() for i in load_industries()]
+            answer = await identify_industry(
+                self.claude, self.settings.claude_model, catalogue, signals.brand_name, domain, text
+            )
+            if answer and answer.custom:
+                return {"detected": answer.industry, "method": "ai custom", "custom": answer.custom.model_dump()}
             if answer:
-                detected, method = answer, "ai classification"
-        return {"detected": detected, "method": method}
+                return {"detected": answer.industry, "method": "ai classification", "custom": None}
+        detected, method = (detection.industry, detection.method) if detection else (None, "none")
+        return {"detected": detected, "method": method, "custom": None}

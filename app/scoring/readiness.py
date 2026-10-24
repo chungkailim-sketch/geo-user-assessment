@@ -3,6 +3,22 @@
 from app.scoring.authority import RECOMMENDATIONS
 from app.scoring.citability import REWRITE_TIPS, SUBSCORE_LABELS
 
+# Shown on every report, after the score-ranked actions: earned media is what AI engines cite most
+# when answering category questions, so PR is the lever that moves both citability and authority.
+PR_STRATEGY_ACTION = {
+    "kind": "strategy",
+    "area": "公关与媒体：塑造AI眼中的品牌叙事",
+    "action": (
+        "AI大模型在回答目标受众的问题时，高度依赖权威新闻媒体、行业垂直媒体与第三方评测等外部信源。"
+        "建议以公关与媒体传播为核心抓手：持续在AI高频引用的主流及垂直媒体发布包含明确事实、数据与品牌观点的内容，"
+        "提升品牌被AI引用的频次与质量；通过高管观点、行业报告与专家背书建立品牌权威；"
+        "并围绕目标受众的高频问题统一品牌核心信息，主动优化品牌叙事，"
+        "让AI在生成答案时准确、正面地呈现你的品牌，提升在各大AI引擎中的可见度。"
+    ),
+    "current": None,
+    "potential_lift": None,
+}
+
 CITABILITY_WEIGHT = 0.55
 AUTHORITY_WEIGHT = 0.45
 
@@ -67,7 +83,7 @@ def build_actions(citability: dict, authority: dict, limit: int = 5) -> list[dic
             "potential_lift": round(gap, 1),
         })
     candidates.sort(key=lambda c: c["potential_lift"], reverse=True)
-    return candidates[:limit]
+    return candidates[:limit] + [PR_STRATEGY_ACTION]
 
 
 def _citability_share(key: str) -> float:

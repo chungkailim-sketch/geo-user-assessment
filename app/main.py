@@ -1,5 +1,6 @@
 """FastAPI entrypoint for the AI Readiness Score web app."""
 
+import hashlib
 import logging
 import re
 from contextlib import asynccontextmanager
@@ -36,6 +37,29 @@ CSP = (
 templates = Jinja2Templates(directory=str(ROOT_DIR / "templates"))
 
 
+def asset_version() -> str:
+    """Short hash of the static files, appended to asset URLs so browsers never run stale JS/CSS."""
+    digest = hashlib.sha256()
+    for path in sorted((ROOT_DIR / "static").rglob("*")):
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:10]
+
+
+templates.env.globals["asset_v"] = asset_version()
+templates.env.globals["industries"] = load_industries()  # the glossary lists the categories on every page
+
+
+def client_ip(request: Request) -> str:
+    """The client IP appended by the trusted proxy: the right-most X-Forwarded-For entry.
+
+    Left-hand entries are supplied by the client and could be spoofed to dodge rate limits.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
+    return hops[-1] if hops else get_remote_address(request)
+
+
 def build_claude_client(settings: Settings):
     if not settings.claude_enabled:
         log.info("ANTHROPIC_API_KEY not set: authority will use limited, on-site signals only")
@@ -49,7 +73,10 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
     settings = settings or get_settings()
     if settings.allow_private_hosts:
         log.warning("ALLOW_PRIVATE_HOSTS is enabled: SSRF protection is OFF. Never use this in production.")
-    limiter = Limiter(key_func=get_remote_address, enabled=settings.rate_limit != "off")
+    limiter = Limiter(
+        key_func=client_ip if settings.trust_proxy_headers else get_remote_address,
+        enabled=settings.rate_limit != "off",
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -67,7 +94,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         await api_client.aclose()
         cache.close()
 
-    app = FastAPI(title="AI搜索就绪度诊断", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="CBGA GEO Readiness Assessment", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.limiter = limiter
     app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
 

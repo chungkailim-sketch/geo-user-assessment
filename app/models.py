@@ -1,5 +1,6 @@
 """Pydantic models for API input/output and validated Claude responses."""
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -54,6 +55,31 @@ class PlatformAssessment(BaseModel):
         if not isinstance(value, list):
             return []
         return [str(u)[:500] for u in value if str(u).lower().startswith(("https://", "http://"))][:8]
+
+
+class CustomIndustry(BaseModel):
+    """An industry (and its leader) that Claude identified outside the default catalogue."""
+
+    name: str = Field(min_length=2, max_length=48)
+    name_zh: str = Field(min_length=1, max_length=24)
+    leader: str = Field(min_length=1, max_length=60)
+    leader_zh: str = Field(min_length=1, max_length=40)
+    leader_url: str = Field(max_length=200)
+
+    @field_validator("name", "name_zh", "leader", "leader_zh", mode="before")
+    @classmethod
+    def plain_text(cls, value: object) -> str:
+        return re.sub(r"[\x00-\x1f\x7f<>\"]", " ", str(value)).strip()
+
+    @field_validator("leader_url")
+    @classmethod
+    def homepage_only(cls, value: str) -> str:
+        from app.fetch.safe_fetch import UnsafeURLError, site_root
+
+        try:
+            return site_root(value)  # shape check only; the fetcher still enforces public IPs
+        except UnsafeURLError as exc:
+            raise ValueError("invalid leader_url") from exc
 
 
 class ClaudeAuthorityResponse(BaseModel):

@@ -1,0 +1,149 @@
+<div class="glossary-backdrop" id="glossary-backdrop" hidden></div>
+<aside class="glossary" id="glossary" role="dialog" aria-modal="true" aria-labelledby="glossary-title" hidden>
+  <header class="glossary-head">
+    <h2 id="glossary-title">术语表</h2>
+    <button type="button" class="glossary-close" id="glossary-close" aria-label="关闭术语表">
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+  </header>
+  <nav class="glossary-nav" aria-label="术语表目录">
+    <a href="#g-scores">分数区间</a>
+    <a href="#g-categories">行业类别</a>
+    <a href="#g-terms">术语释义</a>
+  </nav>
+
+  <div class="glossary-body" id="glossary-body">
+    <!-- 1. Score ranges: thresholds mirror app/scoring (readiness.py, citability.py, authority.py) -->
+    <details class="g-section" id="g-scores" open>
+      <summary>分数区间</summary>
+
+      <section class="g-entry" id="term-readiness-range">
+        <h3>AI搜索就绪度（0–100）</h3>
+        <p>综合得分 = 内容可引用性 × 55% + 品牌权威度 × 45%。</p>
+        <table class="g-table">
+          <tbody>
+            <tr><th>85–100</th><td>优秀</td><td>AI大模型能稳定识别并引用品牌内容</td></tr>
+            <tr><th>70–84</th><td>良好</td><td>基础扎实，少数短板待补齐</td></tr>
+            <tr><th>55–69</th><td>中等</td><td>有一定可见度，但常被竞品取代</td></tr>
+            <tr><th>40–54</th><td>偏低</td><td>AI较少引用，需系统性优化</td></tr>
+            <tr><th>0–39</th><td>亟需优化</td><td>AI几乎无法识别或引用品牌</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="g-entry" id="term-grade-range">
+        <h3>内容块评级（A–F）</h3>
+        <p>每个内容块按可引用性五大维度打分（0–100），再换算为等级。</p>
+        <table class="g-table">
+          <tbody>
+            <tr><th>A</th><td>80–100</td><td>高度可引用，可被AI直接摘录</td></tr>
+            <tr><th>B</th><td>65–79</td><td>可引用性良好</td></tr>
+            <tr><th>C</th><td>50–64</td><td>可引用性一般</td></tr>
+            <tr><th>D</th><td>35–49</td><td>可引用性较低</td></tr>
+            <tr><th>F</th><td>0–34</td><td>难以被AI引用</td></tr>
+          </tbody>
+        </table>
+        <p class="g-note">得分高于70分的内容块计入“高可引用性”占比；低于60分的段落会给出改写建议。</p>
+      </section>
+
+      <section class="g-entry" id="term-platform-range">
+        <h3>平台权威度评级</h3>
+        <p>YouTube、Reddit、维基百科、领英与其他信源各自按0–100评分。</p>
+        <table class="g-table">
+          <tbody>
+            <tr><th>85–100</th><td>领先</td><td>在该平台被频繁、正面地提及</td></tr>
+            <tr><th>70–84</th><td>较强</td><td>有活跃官方账号与稳定的第三方提及</td></tr>
+            <tr><th>50–69</th><td>中等</td><td>有一定存在感，但覆盖不足</td></tr>
+            <tr><th>30–49</th><td>较弱</td><td>账号不活跃或提及零散</td></tr>
+            <tr><th>0–29</th><td>极弱</td><td>几乎没有存在感</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </details>
+
+    <!-- 2. Categories: rendered from config/industries.json -->
+    <details class="g-section" id="g-categories" open>
+      <summary>行业类别</summary>
+      <section class="g-entry" id="term-industry">
+        <h3>所属行业与行业标杆</h3>
+        <p>系统会自动识别品牌所属行业，并与该行业在AI搜索中最具代表性的标杆品牌横向对比。你也可以在报告中手动切换行业。</p>
+        <ul class="g-categories">
+          {% for i in industries %}
+          <li><strong>{{ i.name_zh }}</strong><span>标杆：{{ i.leader_zh }}{% if i.leader_zh != i.leader %}（{{ i.leader }}）{% endif %}</span></li>
+          {% endfor %}
+          <li class="g-custom"><strong>其他行业（AI识别）</strong><span>品牌不属于以上行业时（如银行、时尚、航空），AI会自动识别其实际行业，并选定该行业的全球标杆品牌进行对比。</span></li>
+        </ul>
+      </section>
+      <section class="g-entry" id="term-detection">
+        <h3>识别方式</h3>
+        <dl class="g-dl">
+          <dt>标杆官网识别</dt><dd>输入的网址就是某行业标杆的官网。</dd>
+          <dt>AI识别</dt><dd>AI根据官网内容判断品牌属于默认行业之一。</dd>
+          <dt>AI识别 · 新行业</dt><dd>品牌不在默认行业内，AI识别出新的行业及其标杆品牌。</dd>
+          <dt>关键词识别</dt><dd>未启用AI时，根据官网标题、描述与正文中的行业关键词判断。</dd>
+          <dt>手动选择</dt><dd>你在报告中自行切换了对比行业。</dd>
+        </dl>
+      </section>
+    </details>
+
+    <!-- 3. Terms: definitions follow the GEO skill (geo, geo-citability, geo-brand-mentions) -->
+    <details class="g-section" id="g-terms" open>
+      <summary>术语释义</summary>
+      <dl class="g-dl g-terms">
+        <dt id="term-geo">GEO（生成式引擎优化）</dt>
+        <dd>Generative Engine Optimization。优化品牌内容与站外信号，使ChatGPT、DeepSeek、Kimi、Perplexity、Gemini及谷歌AI概览等AI平台在回答问题时准确识别、引用并推荐品牌。它是传统SEO在AI搜索时代的延伸。</dd>
+
+        <dt id="term-readiness">AI搜索就绪度</dt>
+        <dd>衡量品牌被AI大模型引用与推荐潜力的综合得分（0–100），由内容可引用性（55%）与品牌权威度（45%）加权得出。</dd>
+
+        <dt id="term-citability">内容可引用性（Citability）</dt>
+        <dd>官网内容被AI直接摘录、引用为答案的难易程度。研究表明，AI更倾向引用篇幅约134–167词、可独立成段、事实密集，且首句直接回答问题的段落。按五大维度评分。</dd>
+
+        <dt id="term-block">内容块</dt>
+        <dd>以小标题划分的一段正文，是AI摘录内容的基本单位。系统读取首页及关键页面，逐块评分。</dd>
+
+        <dt id="term-answer-block">答案块质量（权重30%）</dt>
+        <dd>段落是否开门见山地给出答案，例如使用“X是……”“X指的是……”等定义句式，并以问句式小标题引出。</dd>
+
+        <dt id="term-self-containment">段落独立性（权重25%）</dt>
+        <dd>脱离上下文后段落是否仍能被读懂：明确写出主语（品牌或产品名），少用“它/这/他们”等指代词，且包含具体事实。</dd>
+
+        <dt id="term-readability">结构可读性（权重20%）</dt>
+        <dd>使用短句（10–20词）、列表、编号步骤与表格等结构，便于AI解析和切分内容。</dd>
+
+        <dt id="term-stats">数据密度（权重15%）</dt>
+        <dd>段落中具体数字、百分比、年份及注明出处的数据的多少。数据越具体，越容易被AI当作可信答案引用。</dd>
+
+        <dt id="term-uniqueness">原创性与独家数据（权重10%）</dt>
+        <dd>是否包含原创调研、独家数据、具体案例等别处找不到的信息，这是AI优先引用原始信源的关键。</dd>
+
+        <dt id="term-optimal">最佳篇幅区间</dt>
+        <dd>134–167词（英文）。此长度的段落最常被AI完整摘录为答案。</dd>
+
+        <dt id="term-coverage">高可引用性占比</dt>
+        <dd>得分高于70分的内容块占全部内容块的比例。</dd>
+
+        <dt id="term-authority">品牌权威度（Authority）</dt>
+        <dd>品牌在AI高频引用的第三方平台上的存在感与口碑。权重：YouTube 25%、Reddit 25%、维基百科/Wikidata 20%、领英 15%、其他信源（新闻、点评、问答、GitHub等）15%。</dd>
+
+        <dt id="term-mentions">品牌提及</dt>
+        <dd>第三方内容中出现品牌名称，无论是否带链接。研究显示，品牌提及与AI可见度的相关性约为传统外链的3倍，且YouTube与Reddit上的提及影响最大。</dd>
+
+        <dt id="term-entity">实体识别 / 维基百科与Wikidata</dt>
+        <dd>AI通过维基百科词条与Wikidata条目确认“品牌是谁”。拥有词条并在Wikidata中登记官网（P856）的品牌，更容易被AI准确识别和引用。</dd>
+
+        <dt id="term-schema">结构化数据（Schema）与sameAs</dt>
+        <dd>写在网页代码中的机器可读信息。Organization结构化数据描述品牌本身；sameAs属性把官网与维基百科、领英、YouTube等官方账号关联起来，帮助AI确认这些都属于同一品牌。</dd>
+
+        <dt id="term-confidence">联网核实 / 有限</dt>
+        <dd>“已通过联网搜索核实”表示权威度由AI联网检索各平台证据后评分；“有限”表示联网搜索不可用，仅根据官网链接与Wikidata信号估算。</dd>
+
+        <dt id="term-benchmark">行业标杆与差距</dt>
+        <dd>标杆品牌用同一套方法评分。差距 = 你的得分 − 标杆得分，正数表示领先，负数表示落后。</dd>
+
+        <dt id="term-lift">预计最多提升</dt>
+        <dd>该单项提升到满分时，AI搜索就绪度最多可增加的分数，按该项在总分中的权重计算。优化方案按此数值从高到低排序。</dd>
+      </dl>
+    </details>
+  </div>
+</aside>

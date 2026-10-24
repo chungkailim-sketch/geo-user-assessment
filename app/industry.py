@@ -20,6 +20,7 @@ class Industry:
     aliases: tuple[str, ...] = ()
     name_zh: str = ""
     leader_zh: str = ""
+    custom: bool = False  # identified by AI for a brand outside the default catalogue
 
     @property
     def leader_domain(self) -> str:
@@ -27,6 +28,15 @@ class Industry:
 
     def is_leader(self, domain: str) -> bool:
         return domain == self.leader_domain or domain in self.aliases
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "name_zh": self.name_zh, "leader": self.leader,
+                "leader_zh": self.leader_zh, "leader_url": self.leader_url}
+
+    @classmethod
+    def from_custom(cls, data: dict) -> "Industry":
+        return cls(data["name"], data["leader"], data["leader_url"], (), (),
+                   data.get("name_zh") or data["name"], data.get("leader_zh") or data["leader"], custom=True)
 
 
 @lru_cache
@@ -46,6 +56,15 @@ def get_industry(name: str | None) -> Industry | None:
     if not name:
         return None
     return next((i for i in load_industries() if i.name.lower() == name.lower()), None)
+
+
+def resolve_industry(name: str | None, custom: dict | None = None) -> Industry | None:
+    """A catalogue industry by name, else the AI-identified custom industry stored with an audit."""
+    if found := get_industry(name):
+        return found
+    if name and custom and custom.get("name", "").lower() == name.lower():
+        return Industry.from_custom(custom)
+    return None
 
 
 def industry_for_leader_domain(domain: str) -> Industry | None:

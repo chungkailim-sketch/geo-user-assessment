@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}诊断报告 · AI搜索就绪度诊断{% endblock %}
+{% block title %}诊断报告 · CBGA GEO Readiness Assessment{% endblock %}
 {% block content %}
 <div id="app" data-job-id="{{ job_id }}">
 
@@ -22,11 +22,11 @@
     <!-- 1. 总览 -->
     <section class="card summary">
       <div class="summary-meta">
-        <p class="eyebrow">AI搜索就绪度</p>
+        <p class="eyebrow">AI搜索就绪度 <button type="button" class="info-btn" data-glossary="term-readiness-range" aria-label="术语说明：AI搜索就绪度">i</button></p>
         <h1 id="brand-name"></h1>
         <a id="brand-url" class="muted url" target="_blank" rel="noopener noreferrer"></a>
         <div class="industry-row">
-          <label for="industry-select">所属行业</label>
+          <label for="industry-select">所属行业</label><button type="button" class="info-btn" data-glossary="term-industry" aria-label="术语说明：所属行业">i</button>
           <select id="industry-select"></select>
           <span id="industry-method" class="chip"></span>
         </div>
@@ -42,13 +42,13 @@
     <!-- 2. 两大维度 -->
     <section class="grid-2">
       <div class="card stat">
-        <div class="stat-head"><h2>内容可引用性</h2><span class="weight">权重 55%</span></div>
+        <div class="stat-head"><h2>内容可引用性 <button type="button" class="info-btn" data-glossary="term-citability" aria-label="术语说明：内容可引用性">i</button></h2><span class="weight">权重 55%</span></div>
         <div class="stat-value"><span id="cit-score"></span><small>/100</small></div>
         <div class="meter"><div class="meter-fill" id="cit-meter"></div></div>
         <p class="muted small" id="cit-contribution"></p>
       </div>
       <div class="card stat">
-        <div class="stat-head"><h2>品牌权威度</h2><span class="weight">权重 45%</span></div>
+        <div class="stat-head"><h2>品牌权威度 <button type="button" class="info-btn" data-glossary="term-authority" aria-label="术语说明：品牌权威度">i</button></h2><span class="weight">权重 45%</span></div>
         <div class="stat-value"><span id="auth-score"></span><small>/100</small></div>
         <div class="meter"><div class="meter-fill" id="auth-meter"></div></div>
         <p class="muted small" id="auth-contribution"></p>
@@ -64,7 +64,7 @@
     <!-- 3. 可引用性详情 -->
     <section class="card">
       <div class="section-head">
-        <h2>内容可引用性分析</h2>
+        <h2>内容可引用性分析 <button type="button" class="info-btn" data-glossary="term-answer-block" aria-label="术语说明：可引用性五大维度">i</button></h2>
         <p class="muted small" id="cit-meta"></p>
       </div>
       <div class="grid-2 inner">
@@ -73,7 +73,7 @@
           <div class="chart-box"><canvas id="cit-radar" role="img" aria-label="可引用性维度雷达图"></canvas></div>
         </figure>
         <figure class="chart">
-          <figcaption>内容块评级分布</figcaption>
+          <figcaption>内容块评级分布 <button type="button" class="info-btn" data-glossary="term-grade-range" aria-label="术语说明：内容块评级">i</button></figcaption>
           <div class="chart-box"><canvas id="grade-bar" role="img" aria-label="内容块评级分布"></canvas></div>
         </figure>
       </div>
@@ -97,7 +97,7 @@
     <!-- 4. 权威度详情 -->
     <section class="card">
       <div class="section-head">
-        <h2>品牌权威度分析</h2>
+        <h2>品牌权威度分析 <button type="button" class="info-btn" data-glossary="term-platform-range" aria-label="术语说明：平台权威度评级">i</button></h2>
         <span class="badge" id="confidence"></span>
       </div>
       <figure class="chart">
@@ -110,7 +110,7 @@
     <!-- 5. 行业标杆对比 -->
     <section class="card" id="benchmark-card">
       <div class="section-head">
-        <h2 id="benchmark-title">行业标杆对比</h2>
+        <div class="title-row"><h2 id="benchmark-title">行业标杆对比</h2><button type="button" class="info-btn" data-glossary="term-benchmark" aria-label="术语说明：行业标杆与差距">i</button></div>
         <span class="legend" aria-hidden="true">
           <span class="swatch s1"></span><span id="legend-brand">你的品牌</span>
           <span class="swatch s2"></span><span id="legend-leader">行业标杆</span>
@@ -138,7 +138,7 @@
 
     <!-- 6. 优化方案 -->
     <section class="card">
-      <h2>逐项GEO优化方案（按优先级）</h2>
+      <h2>逐项GEO优化方案（按优先级） <button type="button" class="info-btn" data-glossary="term-lift" aria-label="术语说明：预计最多提升">i</button></h2>
       <ol class="actions" id="actions"></ol>
     </section>
 
@@ -153,6 +153,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"
         integrity="sha512-CQBWl4fJHWbryGE+Pc7UAxWMUMNMWzWxF4SQo9CgkJIN1kx6djDQZjh3Y8SZ1d+6I+1zze6Z7kHXO7q3UyZAWw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-<script src="/static/js/charts.js" defer></script>
-<script src="/static/js/results.js" defer></script>
+<script src="/static/js/charts.js?v={{ asset_v }}" defer></script>
+<script src="/static/js/results.js?v={{ asset_v }}" defer></script>
 {% endblock %}

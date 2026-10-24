@@ -16,6 +16,11 @@ PLATFORM_LABELS = {
     "youtube": "YouTube", "reddit": "Reddit", "wikipedia": "维基百科 / Wikidata",
     "linkedin": "领英 LinkedIn", "other": "其他信源（新闻、点评、问答、GitHub）",
 }
+OTHER_PLATFORM_NAMES = {
+    "instagram": "Instagram", "x": "X（推特）", "facebook": "Facebook", "tiktok": "TikTok",
+    "github": "GitHub", "crunchbase": "Crunchbase", "trustpilot": "Trustpilot", "glassdoor": "Glassdoor",
+    "pinterest": "Pinterest", "weibo": "微博",
+}
 PLATFORM_SHORT_LABELS = {
     "youtube": "YouTube", "reddit": "Reddit", "wikipedia": "维基百科", "linkedin": "领英", "other": "其他信源",
 }
@@ -104,7 +109,10 @@ def heuristic_scores(signals: BrandSignals, wiki: WikiPresence, wiki_score: int)
     other_platforms = {p for p in OTHER_PLATFORMS if signals.has(p)} | {p for p in ("x", "instagram", "facebook") if accounts.get(p)}
     other = {
         "score": min(80, 10 + 8 * len(other_platforms) + (15 if notable else 0)),
-        "evidence": [f"发现{len(other_platforms)}个其他平台官方账号：{'、'.join(sorted(other_platforms)) or '无'}"],
+        "evidence": [
+            f"发现{len(other_platforms)}个其他平台官方账号："
+            f"{'、'.join(OTHER_PLATFORM_NAMES.get(p, p) for p in sorted(other_platforms)) or '无'}"
+        ],
         "sources": [url for p in ("instagram", "x", "facebook", "tiktok") for url in signals.profiles.get(p, [])[:1]],
     }
     return {

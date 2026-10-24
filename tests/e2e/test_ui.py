@@ -54,6 +54,10 @@ def test_assessment_flow(live_server, viewport):
 
         page.goto(live_server + "/")
         page.screenshot(path=str(SCREENSHOTS / f"index-{tag}.png"), full_page=True)
+        assert page.input_value("#url") == "https://www..com"
+        page.click("#url")
+        page.keyboard.type("acme")  # caret lands between "www." and ".com"
+        assert page.input_value("#url") == "https://www.acme.com"
         page.fill("#url", "www.acmeclean.example")
         page.click("#submit")
 
@@ -65,12 +69,27 @@ def test_assessment_flow(live_server, viewport):
         assert page.text_content("#score-label") in ("优秀", "良好", "中等", "偏低", "亟需优化")
         for canvas in ("gauge", "cit-radar", "grade-bar", "platform-bar", "bench-bar", "bench-radar"):
             assert page.eval_on_selector(f"#{canvas}", "c => c.width > 0 && c.height > 0"), canvas
-        assert page.locator("#actions li").count() == 5
+        assert page.locator("#actions li").count() == 6
+        assert "公关与媒体" in page.text_content("#actions li.strategy")
         assert page.locator("#platforms .platform").count() == 5
         no_overflow = page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
         assert no_overflow, "horizontal page scroll"
         page.wait_for_timeout(1000)  # let chart animations settle before the screenshot
         page.screenshot(path=str(SCREENSHOTS / f"results-{tag}.png"), full_page=True)
+
+        # Glossary panel: an info button opens it at its entry; Esc closes it and restores focus.
+        assert page.locator("#glossary").is_hidden()
+        page.click("[data-glossary='term-authority']")
+        page.locator("#glossary.open").wait_for()
+        assert page.locator("#term-authority").is_visible()
+        assert page.evaluate("document.activeElement.id") == "glossary-close"
+        page.keyboard.press("Escape")
+        page.locator("#glossary").wait_for(state="hidden")
+        assert page.evaluate("document.activeElement.dataset.glossary") == "term-authority"
+        page.click(".glossary-toggle")
+        page.locator("#glossary.open").wait_for()
+        page.click("#glossary-backdrop", position={"x": 5, "y": 5})
+        page.locator("#glossary").wait_for(state="hidden")
 
         page.select_option("#industry-select", "F&B")
         # A selector wait, not wait_for_function: the app's CSP (correctly) forbids string eval.

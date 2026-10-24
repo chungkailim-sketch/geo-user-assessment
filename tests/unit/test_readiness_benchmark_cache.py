@@ -66,10 +66,21 @@ def test_findings_for_low_citability_and_empty_pages():
 
 def test_actions_ranked_by_potential_lift():
     actions = build_actions(citability_fixture(), authority_fixture())
-    lifts = [a["potential_lift"] for a in actions]
+    ranked = actions[:-1]
+    lifts = [a["potential_lift"] for a in ranked]
     assert lifts == sorted(lifts, reverse=True)
-    assert len(actions) == 5
-    assert actions[0]["area"].startswith(("可引用性", "品牌权威度"))
+    assert len(ranked) == 5
+    assert ranked[0]["area"].startswith(("可引用性", "品牌权威度"))
+
+
+def test_pr_media_strategy_is_always_included():
+    for cit, auth in ((citability_fixture(score=10), authority_fixture()),
+                      (citability_fixture(score=95), authority_fixture({k: 95 for k in
+                       ("youtube", "reddit", "wikipedia", "linkedin", "other")}))):
+        strategy = build_actions(cit, auth)[-1]
+        assert strategy["kind"] == "strategy"
+        assert "公关与媒体" in strategy["area"]
+        assert "品牌叙事" in strategy["action"] and "AI" in strategy["action"]
 
 
 def test_compare_brand_with_leader():

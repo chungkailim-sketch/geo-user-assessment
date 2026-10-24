@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     anthropic_api_key: str = ""
-    claude_model: str = "claude-sonnet-5-5"
+    claude_model: str = "claude-opus-5-5"
     claude_timeout_seconds: float = 120.0
 
     cache_path: Path = ROOT_DIR / "data" / "cache.sqlite3"
@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     max_queued_jobs: int = 20
     audit_deadline_seconds: float = 240.0
     min_refresh_seconds: int = 3600  # a "fresh" re-run is honoured at most hourly per domain
+    # Behind a reverse proxy (e.g. Railway) every request arrives from the proxy, so rate limits key
+    # on the client IP the proxy appends to X-Forwarded-For. Only enable when such a proxy is in front.
+    trust_proxy_headers: bool = False
     # Test-only escape hatch so integration tests can audit a local fixture site.
     allow_private_hosts: bool = False
 

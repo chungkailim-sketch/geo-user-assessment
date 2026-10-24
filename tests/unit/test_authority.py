@@ -179,3 +179,11 @@ async def test_wikipedia_checker_prefers_richest_website_match():
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
         presence = await WikipediaChecker(client).check("Sony", "sony.net", ("sony.com",))
     assert presence.wikidata_id == "Q3" and presence.article_title == "Sony"
+
+
+def test_other_platform_evidence_uses_display_names():
+    signals = extract_signals(BRAND_HOME, "https://www.acmeclean.example/")
+    wiki = WikiPresence(social_accounts={"x": 1, "facebook": 1})
+    evidence = heuristic_scores(signals, wiki, wiki_score=20)["other"]["evidence"][0]
+    assert "Instagram" in evidence and "X（推特）" in evidence and "Facebook" in evidence
+    assert "instagram" not in evidence
