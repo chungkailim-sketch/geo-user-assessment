@@ -1,4 +1,4 @@
-# CBGA GEO Readiness Assessment
+# 罗德出海GEO准备度评估
 
 **Design:** follows the Ruder Finn brand (ruderfinn.com). It uses the Be Vietnam Pro typeface, RF green `#2da44a` headlines with tight tracking, pill-shaped inputs and buttons, a lime-to-green gradient (`#aaca43` → `#2da571`) and the rf. GEO logo. The theme is light only, like the RF site. Chart colours (green `#27933a` for the brand, deep yellow `#e8a200` for the leader) passed the colour-vision checks. Every report ends with a fixed PR and media strategy recommendation.
 
@@ -34,6 +34,10 @@ Score labels: 85+ Excellent · 70–84 Good · 55–69 Moderate · 40–54 Below
 The industry is detected automatically and the user can change it on the results page. Leaders are edited in `config/industries.json`.
 
 With `ANTHROPIC_API_KEY` set, Claude classifies every brand (a leader's own domain is still matched directly). If none of the seven categories fits, for example a bank or an airline, Claude names the brand's actual industry and that industry's global leader. The leader's URL is validated and reduced to its homepage, then the leader is audited like any other site. The AI-identified industry is added to the dropdown alongside the seven defaults. Without a key, industries are matched by keywords only.
+
+To compare against an industry that isn't listed, the user picks **其他（手动输入）** in the dropdown and types the industry name, such as 银行 or 宠物食品. Claude maps the input to a catalogue industry when one matches; otherwise it identifies the industry's leader. The typed industry stays in the dropdown for that report, and the leader lookup is cached for 7 days. This requires an API key.
+
+**核心策略建议 (core strategy recommendation).** Once the industry is known, Claude uses live web search to find the 5–8 media sources that AI assistants cite most for that industry in the brand's main market, such as news outlets, vertical media, review sites, Q&A communities and video platforms. It then writes a PR strategy built around those sources. The report shows the sources with their type and why each matters, followed by the tailored strategy. The result is cached for 24 hours per brand and industry, and is regenerated when the user switches industry. Without a key, or if the call fails, the generic strategy is shown instead.
 
 A **术语表** (glossary) panel opens from the header or from the ⓘ buttons on the results page. It covers the score ranges (overall, passage grades, platform bands), the industry categories, and definitions of the terms used, which follow the GEO skill.
 

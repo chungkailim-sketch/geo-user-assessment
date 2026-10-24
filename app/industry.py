@@ -58,13 +58,14 @@ def get_industry(name: str | None) -> Industry | None:
     return next((i for i in load_industries() if i.name.lower() == name.lower()), None)
 
 
-def resolve_industry(name: str | None, custom: dict | None = None) -> Industry | None:
-    """A catalogue industry by name, else the AI-identified custom industry stored with an audit."""
+def resolve_industry(name: str | None, *customs: dict) -> Industry | None:
+    """A catalogue industry by name, else one of the custom industries stored with an audit."""
     if found := get_industry(name):
         return found
-    if name and custom and custom.get("name", "").lower() == name.lower():
-        return Industry.from_custom(custom)
-    return None
+    if not name:
+        return None
+    custom = next((c for c in customs if c and c.get("name", "").lower() == name.lower()), None)
+    return Industry.from_custom(custom) if custom else None
 
 
 def industry_for_leader_domain(domain: str) -> Industry | None:

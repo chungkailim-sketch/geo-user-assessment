@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}诊断报告 · CBGA GEO Readiness Assessment{% endblock %}
+{% block title %}诊断报告 · 罗德出海GEO准备度评估{% endblock %}
 {% block content %}
 <div id="app" data-job-id="{{ job_id }}">
 
@@ -30,6 +30,13 @@
           <select id="industry-select"></select>
           <span id="industry-method" class="chip"></span>
         </div>
+        <form id="custom-industry-form" class="custom-industry" novalidate hidden>
+          <label class="sr-only" for="custom-industry">自定义行业名称</label>
+          <input id="custom-industry" type="text" maxlength="40" autocomplete="off"
+                 placeholder="输入所属行业，例如：银行、宠物食品">
+          <button type="submit" id="custom-industry-submit" class="button small">对比标杆</button>
+        </form>
+        <p id="custom-industry-error" class="form-error small" role="alert" hidden></p>
         <p class="muted small" id="audited-at"></p>
       </div>
       <div class="gauge-wrap">

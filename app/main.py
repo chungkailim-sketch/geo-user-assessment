@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -20,7 +20,7 @@ from app.cache import JsonCache
 from app.config import ROOT_DIR, Settings, get_settings
 from app.fetch.safe_fetch import SafeFetcher, UnsafeURLError, build_page_client, normalize_url
 from app.industry import get_industry, load_industries
-from app.jobs import JobManager, QueueFullError
+from app.jobs import CustomIndustryError, JobManager, QueueFullError
 from app.models import AuditRequest, JobStatus
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -94,7 +94,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         await api_client.aclose()
         cache.close()
 
-    app = FastAPI(title="CBGA GEO Readiness Assessment", lifespan=lifespan, docs_url=None, redoc_url=None)
+    app = FastAPI(title="罗德出海GEO准备度评估", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.limiter = limiter
     app.mount("/static", StaticFiles(directory=str(ROOT_DIR / "static")), name="static")
 
@@ -157,12 +157,33 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
 
     class BenchmarkRequest(BaseModel):
         audit_id: str = Field(pattern=JOB_ID_PATTERN.pattern)
-        industry: str = Field(max_length=64)
+        industry: str | None = Field(default=None, max_length=64)
+        custom_industry: str | None = Field(default=None, max_length=40)  # typed via "其他"
+
+        @field_validator("custom_industry")
+        @classmethod
+        def clean_custom(cls, value: str | None) -> str | None:
+            if value is None:
+                return None
+            cleaned = re.sub(r"[\x00-\x1f\x7f<>\"{}]", " ", value).strip()
+            if not cleaned:
+                raise ValueError("请输入行业名称。")
+            return cleaned
+
+        @model_validator(mode="after")
+        def one_choice(self) -> "BenchmarkRequest":
+            if bool(self.industry) == bool(self.custom_industry):
+                raise ValueError("请选择一个行业，或输入自定义行业。")
+            return self
 
     @app.post("/api/benchmark")
     @limiter.limit(settings.benchmark_rate_limit if settings.rate_limit != "off" else "1000/second")
     async def rebenchmark(request: Request, body: BenchmarkRequest):
-        benchmark = await request.app.state.jobs.rebenchmark(body.audit_id, body.industry)
+        try:
+            benchmark = await request.app.state.jobs.rebenchmark(
+                body.audit_id, body.industry, custom_text=body.custom_industry)
+        except CustomIndustryError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         if benchmark is None:
             raise HTTPException(status_code=404, detail="未找到该诊断报告或行业。")
         return benchmark

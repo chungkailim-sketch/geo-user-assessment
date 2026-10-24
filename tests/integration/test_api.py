@@ -102,6 +102,90 @@ def test_industry_outside_catalogue_is_identified_and_benchmarked(make_client):
         assert unknown.status_code == 404
 
 
+class RoutingClaude:
+    """Fake Claude that answers by prompt type, so call order doesn't matter."""
+
+    def __init__(self, industry_answer: dict, leader_answer: dict | None = None):
+        from tests.unit.test_claude_strategy import MEDIA_PAYLOAD
+
+        self.routes = [
+            ("off-site authority", AUTHORITY_PAYLOAD),
+            ("classifying a brand's industry", industry_answer),
+            ("typed their industry", leader_answer or {"industry": "F&B"}),
+            ("PR and GEO", MEDIA_PAYLOAD),
+        ]
+        self.calls: list[dict] = []
+        self.messages = self
+
+    async def create(self, **kwargs):
+        self.calls.append(kwargs)
+        prompt = kwargs["messages"][0]["content"]
+        payload = next(answer for marker, answer in self.routes if marker in prompt)
+        return claude_text_response(payload)
+
+    def count(self, marker: str) -> int:
+        return sum(marker in call["messages"][0]["content"] for call in self.calls)
+
+
+def test_strategy_is_tailored_with_most_cited_media(make_client):
+    claude = RoutingClaude({"industry": "Smart Cleaning"})
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+        strategy = job["result"]["actions"][-1]
+        assert strategy["kind"] == "strategy" and strategy["tailored"] is True
+        assert strategy["industry_zh"] == "智能清洁" and strategy["market"] == "中国大陆"
+        assert [m["name"] for m in strategy["media"]][:2] == ["什么值得买", "知乎"]
+        assert sum(a["kind"] == "strategy" for a in job["result"]["actions"] if "kind" in a) == 1
+
+        # A second report for the same brand + industry reuses the cached media analysis.
+        again = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+        assert again["result"]["actions"][-1]["media"] == strategy["media"]
+    assert claude.count("PR and GEO") == 1
+
+
+def test_strategy_falls_back_to_generic_without_claude(make_client):
+    with make_client() as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    strategy = job["result"]["actions"][-1]
+    assert strategy["kind"] == "strategy" and "media" not in strategy and "公关与媒体" in strategy["area"]
+
+
+def test_manual_other_industry_finds_leader_and_retailors_strategy(make_client):
+    claude = RoutingClaude({"industry": "Smart Cleaning"},
+                           {"industry": "other", "custom": {"name": "Pet Food", "name_zh": "宠物食品",
+                                                            "leader": "Purina", "leader_zh": "普瑞纳",
+                                                            "leader_url": "https://www.purina.example"}})
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+        response = client.post("/api/benchmark", json={"audit_id": job["job_id"], "custom_industry": " 宠物食品 "})
+        assert response.status_code == 200 and response.json()["leader_zh"] == "普瑞纳"
+        result = client.get(f"/api/audit/{job['job_id']}").json()["result"]
+        industry = result["industry"]
+        assert industry["selected"] == "Pet Food" and industry["custom_names"] == ["Pet Food"]
+        assert industry["options"][0] == "Pet Food" and industry["option_labels"]["Pet Food"] == "宠物食品"
+        assert result["actions"][-1]["industry_zh"] == "宠物食品"  # strategy re-tailored to the new industry
+
+        # The typed industry stays selectable from the dropdown, and its leader lookup is cached.
+        assert client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "F&B"}).status_code == 200
+        back = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Pet Food"})
+        assert back.json()["leader"] == "Purina"
+        client.post("/api/benchmark", json={"audit_id": job["job_id"], "custom_industry": "宠物食品"})
+    assert claude.count("typed their industry") == 1
+
+
+def test_manual_industry_requires_claude_and_valid_input(make_client):
+    with make_client() as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+        audit_id = job["job_id"]
+        no_ai = client.post("/api/benchmark", json={"audit_id": audit_id, "custom_industry": "银行"})
+        assert no_ai.status_code == 400 and "ANTHROPIC_API_KEY" in no_ai.json()["detail"]
+        for bad in ({"audit_id": audit_id},
+                    {"audit_id": audit_id, "industry": "F&B", "custom_industry": "银行"},
+                    {"audit_id": audit_id, "custom_industry": "<>"},
+                    {"audit_id": audit_id, "custom_industry": "x" * 41}):
+            assert client.post("/api/benchmark", json=bad).status_code == 422, bad
+
+
 def test_leader_site_is_its_own_benchmark(make_client):
     with make_client() as client:
         job = wait_for(client, client.post("/api/audit", json={"url": "https://www.dyson.com"}).json()["job_id"])
@@ -142,7 +226,7 @@ def test_pages_render_with_security_headers(make_client):
         index = client.get("/")
         assert index.status_code == 200
         assert 'lang="zh-CN"' in index.text
-        assert "CBGA GEO Readiness Assessment" in index.text and "/static/img/rf-geo-logo.png" in index.text
+        assert "罗德出海GEO准备度评估" in index.text and "/static/img/rf-geo-logo.png" in index.text
         assert 'value="https://www..com"' in index.text
         assert "Citability × 0.55" not in index.text and "可引用性 × 0.55" not in index.text
         assert "explainer" not in index.text  # the three info boxes were removed

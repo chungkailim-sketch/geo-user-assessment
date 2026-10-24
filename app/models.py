@@ -82,6 +82,48 @@ class CustomIndustry(BaseModel):
             raise ValueError("invalid leader_url") from exc
 
 
+def _plain(value: object, limit: int) -> str:
+    return re.sub(r"[\x00-\x1f\x7f<>]", " ", str(value)).strip()[:limit]
+
+
+class MediaSource(BaseModel):
+    """A media outlet/platform that AI assistants frequently cite for the brand's industry."""
+
+    name: str = Field(min_length=1, max_length=60)
+    kind: str = Field(default="", max_length=20)
+    reason: str = Field(default="", max_length=120)
+    url: str | None = None
+
+    @field_validator("name", "kind", "reason", mode="before")
+    @classmethod
+    def plain_text(cls, value: object, info) -> str:
+        return _plain(value, {"name": 60, "kind": 20, "reason": 120}[info.field_name])
+
+    @field_validator("url", mode="before")
+    @classmethod
+    def http_only(cls, value: object) -> str | None:
+        text = str(value or "").strip()[:300]
+        return text if text.lower().startswith(("https://", "http://")) else None
+
+
+class MediaStrategy(BaseModel):
+    """Claude's perspective on the most AI-cited media for an industry, plus a tailored PR strategy."""
+
+    market: str = Field(default="", max_length=30)
+    sources: list[MediaSource] = Field(min_length=3, max_length=8)
+    strategy: str = Field(min_length=20, max_length=700)
+
+    @field_validator("market", "strategy", mode="before")
+    @classmethod
+    def plain_text(cls, value: object, info) -> str:
+        return _plain(value, {"market": 30, "strategy": 700}[info.field_name])
+
+    @field_validator("sources", mode="before")
+    @classmethod
+    def cap_sources(cls, value: object) -> object:
+        return value[:8] if isinstance(value, list) else value
+
+
 class ClaudeAuthorityResponse(BaseModel):
     youtube: PlatformAssessment
     reddit: PlatformAssessment

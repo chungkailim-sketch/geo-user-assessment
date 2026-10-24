@@ -71,7 +71,8 @@
           {% for i in industries %}
           <li><strong>{{ i.name_zh }}</strong><span>标杆：{{ i.leader_zh }}{% if i.leader_zh != i.leader %}（{{ i.leader }}）{% endif %}</span></li>
           {% endfor %}
-          <li class="g-custom"><strong>其他行业（AI识别）</strong><span>品牌不属于以上行业时（如银行、时尚、航空），AI会自动识别其实际行业，并选定该行业的全球标杆品牌进行对比。</span></li>
+          <li class="g-custom"><strong>其他行业（AI识别）</strong><span>AI会根据官网网址与内容，为品牌匹配最接近的行业。若不属于以上行业（如银行、时尚、航空），AI会识别其实际行业，并选定该行业的全球标杆品牌进行对比。</span></li>
+          <li class="g-custom"><strong>其他（手动输入）</strong><span>在报告的行业下拉菜单中选择“其他”，输入任意行业名称，AI会找到该行业的标杆品牌并重新对比。</span></li>
         </ul>
       </section>
       <section class="g-entry" id="term-detection">
@@ -82,6 +83,7 @@
           <dt>AI识别 · 新行业</dt><dd>品牌不在默认行业内，AI识别出新的行业及其标杆品牌。</dd>
           <dt>关键词识别</dt><dd>未启用AI时，根据官网标题、描述与正文中的行业关键词判断。</dd>
           <dt>手动选择</dt><dd>你在报告中自行切换了对比行业。</dd>
+          <dt>手动输入</dt><dd>你通过“其他”输入了自定义行业，标杆品牌由AI识别。</dd>
         </dl>
       </section>
     </details>
@@ -140,6 +142,9 @@
 
         <dt id="term-benchmark">行业标杆与差距</dt>
         <dd>标杆品牌用同一套方法评分。差距 = 你的得分 − 标杆得分，正数表示领先，负数表示落后。</dd>
+
+        <dt id="term-media">AI高频引用的媒体信源</dt>
+        <dd>AI大模型回答某一行业问题时反复引用的新闻媒体、垂直媒体、测评网站、问答社区与视频平台。核心策略建议会结合品牌所属行业与主要市场，由AI联网检索这些信源，并据此给出优先投放与内容布局建议。</dd>
 
         <dt id="term-lift">预计最多提升</dt>
         <dd>该单项提升到满分时，AI搜索就绪度最多可增加的分数，按该项在总分中的权重计算。优化方案按此数值从高到低排序。</dd>

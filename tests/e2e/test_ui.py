@@ -12,7 +12,8 @@ import pytest
 import uvicorn
 
 from app.main import create_app
-from tests.conftest import AUTHORITY_PAYLOAD, FakeClaude, claude_text_response
+from tests.integration.test_api import RoutingClaude
+from tests.unit.test_claude_strategy import BANKING
 
 pytestmark = pytest.mark.e2e
 playwright = pytest.importorskip("playwright.sync_api")
@@ -27,7 +28,7 @@ def _free_port() -> int:
 
 @pytest.fixture
 def live_server(test_settings, mock_transport):
-    claude = FakeClaude([claude_text_response(AUTHORITY_PAYLOAD) for _ in range(4)])
+    claude = RoutingClaude({"industry": "Smart Cleaning"}, {"industry": "other", "custom": BANKING})
     app = create_app(test_settings, claude_client=claude, transport=mock_transport)
     port = _free_port()
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
@@ -69,7 +70,7 @@ def test_assessment_flow(live_server, viewport):
         assert page.text_content("#score-label") in ("优秀", "良好", "中等", "偏低", "亟需优化")
         for canvas in ("gauge", "cit-radar", "grade-bar", "platform-bar", "bench-bar", "bench-radar"):
             assert page.eval_on_selector(f"#{canvas}", "c => c.width > 0 && c.height > 0"), canvas
-        assert page.locator("#actions li").count() == 6
+        assert page.locator("#actions > li").count() == 6
         assert "公关与媒体" in page.text_content("#actions li.strategy")
         assert page.locator("#platforms .platform").count() == 5
         no_overflow = page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1")
@@ -90,6 +91,21 @@ def test_assessment_flow(live_server, viewport):
         page.locator("#glossary.open").wait_for()
         page.click("#glossary-backdrop", position={"x": 5, "y": 5})
         page.locator("#glossary").wait_for(state="hidden")
+
+        # Tailored strategy: the most AI-cited media for the industry are listed under 核心策略建议.
+        assert page.locator("#actions li.strategy .media-list li").count() == 3
+        assert "什么值得买" in page.text_content("#actions li.strategy")
+
+        # "其他": type an industry outside the catalogue; AI finds its leader and the report updates.
+        assert page.locator("#custom-industry-form").is_hidden()
+        page.select_option("#industry-select", "__other__")
+        assert page.locator("#custom-industry-form").is_visible()
+        page.fill("#custom-industry", "银行")
+        page.click("#custom-industry-submit")
+        page.locator("#benchmark-title", has_text="摩根大通").wait_for(timeout=20000)
+        assert page.input_value("#industry-select") == "Banking"
+        assert page.text_content("#industry-method") == "手动输入"
+        assert "银行金融" in page.text_content("#actions li.strategy .media-title")
 
         page.select_option("#industry-select", "F&B")
         # A selector wait, not wait_for_function: the app's CSP (correctly) forbids string eval.

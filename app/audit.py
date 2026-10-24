@@ -30,7 +30,7 @@ from app.scoring.wikipedia import WikipediaChecker
 log = logging.getLogger(__name__)
 
 Progress = Callable[[str, int], Awaitable[None]]
-SITE_KEY = "site:v4:"  # bump when result wording/shape changes so stale cache entries are ignored
+SITE_KEY = "site:v5:"  # bump when result wording/shape changes so stale cache entries are ignored
 DEGRADED_NOTE = "部分数据源暂时不可用，本次诊断结果可能不完整（未写入缓存）。"
 
 

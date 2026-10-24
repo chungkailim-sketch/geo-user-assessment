@@ -14,6 +14,7 @@
     ambiguous: "关键词识别（待确认）",
     none: "未识别",
   };
+  const OTHER = "__other__";
   const $ = (id) => document.getElementById(id);
   let report = null;
 
@@ -77,7 +78,7 @@
     report = result;
     $("loading").hidden = true;
     $("report").hidden = false;
-    document.title = result.brand_name + " · CBGA GEO Readiness Assessment";
+    document.title = result.brand_name + " · 罗德出海GEO准备度评估";
     renderSummary(result);
     renderComponents(result);
     renderCitability(result.citability);
@@ -97,21 +98,26 @@
     $("audited-at").textContent = "诊断时间 " + new Date(r.audited_at).toLocaleString("zh-CN") +
       " · 共分析 " + r.citability.pages_analyzed + " 个页面";
     ReadinessCharts.gauge("gauge", r.score);
+    renderIndustry(r.industry);
+  }
 
+  function renderIndustry(industry) {
     const select = $("industry-select");
     select.replaceChildren(el("option", { value: "", text: "选择行业…" }));
-    const labels = r.industry.option_labels || {};
-    const customName = r.industry.custom ? r.industry.custom.name : null;
-    r.industry.options.forEach((name) => {
-      const text = (labels[name] || name) + (name === customName ? "（AI识别）" : "");
-      const option = el("option", { value: name, text: text });
-      if (name === r.industry.selected) option.selected = true;
+    const labels = industry.option_labels || {};
+    const detectedCustom = industry.custom ? industry.custom.name : null;
+    const customNames = industry.custom_names || [];
+    industry.options.forEach((name) => {
+      const suffix = name === detectedCustom ? "（AI识别）" : customNames.includes(name) ? "（自定义）" : "";
+      const option = el("option", { value: name, text: (labels[name] || name) + suffix });
+      if (name === industry.selected) option.selected = true;
       select.appendChild(option);
     });
-    $("industry-method").textContent = r.industry.selected === r.industry.detected
-      ? (METHOD_LABELS[r.industry.method] || "自动识别")
-      : "手动选择";
-    select.onchange = () => select.value && rebenchmark(select.value);
+    select.appendChild(el("option", { value: OTHER, text: "其他（手动输入）…" }));
+    $("industry-method").textContent = industry.selected === industry.detected
+      ? (METHOD_LABELS[industry.method] || "自动识别")
+      : customNames.includes(industry.selected) && industry.selected !== detectedCustom ? "手动输入" : "手动选择";
+    $("custom-industry-form").hidden = true;
   }
 
   function renderComponents(r) {
@@ -240,13 +246,37 @@
     );
   }
 
+  function mediaItem(m) {
+    const href = safeHref(m.url || "");
+    const name = href
+      ? el("a", { href: href, target: "_blank", rel: "noopener noreferrer", className: "media-name", text: m.name })
+      : el("span", { className: "media-name", text: m.name });
+    return el("li", {}, [
+      el("div", { className: "media-head" }, [name, m.kind ? el("span", { className: "media-kind", text: m.kind }) : null]),
+      m.reason ? el("span", { className: "media-reason", text: m.reason }) : null,
+    ]);
+  }
+
+  function strategyItem(a) {
+    const media = a.media && a.media.length
+      ? el("div", { className: "media-sources" }, [
+          el("p", { className: "media-title", text: "AI高频引用的媒体信源 · " + (a.industry_zh || "所属行业") + (a.market ? " · " + a.market : "") }),
+          el("ul", { className: "media-list" }, a.media.map(mediaItem)),
+          el("p", { className: "media-title", text: "策略建议" }),
+        ])
+      : null;
+    return el("li", { className: "strategy" }, [
+      el("span", { className: "strategy-tag", text: "核心策略建议" }),
+      el("strong", { text: a.area }),
+      media,
+      el("span", { className: "strategy-text", text: a.action }),
+      a.tailored ? el("span", { className: "strategy-note", text: "基于AI联网检索的行业媒体引用分析生成" }) : null,
+    ]);
+  }
+
   function renderActions(actions) {
     $("actions").replaceChildren(...actions.map((a) => a.kind === "strategy"
-      ? el("li", { className: "strategy" }, [
-          el("span", { className: "strategy-tag", text: "核心策略建议" }),
-          el("strong", { text: a.area }),
-          el("span", { text: a.action }),
-        ])
+      ? strategyItem(a)
       : el("li", {}, [
           el("strong", { text: a.area + "（当前 " + Math.round(a.current) + "/100）" }),
           el("span", { text: a.action + " " }),
@@ -254,32 +284,75 @@
         ])));
   }
 
-  async function rebenchmark(industry) {
-    const industryLabel = (report.industry.option_labels || {})[industry] || industry;
-    $("benchmark-status").textContent = "正在评估" + industryLabel + "行业标杆…首次对比约需一分钟。";
+  // Re-compare with another industry. The server also re-tailors the media strategy, so the stored
+  // report is re-read afterwards and the industry, benchmark and actions re-rendered together.
+  async function rebenchmark(payload, label) {
+    const select = $("industry-select");
+    select.disabled = true;
+    $("custom-industry-submit").disabled = true;
+    $("custom-industry-error").hidden = true;
+    $("benchmark-status").textContent = "正在评估" + label + "行业标杆并分析该行业AI高频引用媒体…约需一至两分钟。";
     $("benchmark-body").hidden = true;
     try {
       const response = await fetch("/api/benchmark", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ audit_id: jobId, industry: industry }),
+        body: JSON.stringify(Object.assign({ audit_id: jobId }, payload)),
       });
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      const benchmark = await response.json();
-      report = Object.assign({}, report, { benchmark: benchmark, industry: Object.assign({}, report.industry, { selected: industry }) });
-      $("industry-method").textContent = report.industry.selected === report.industry.detected
-        ? (METHOD_LABELS[report.industry.method] || "自动识别") : "手动选择";
-      renderBenchmark(benchmark);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = typeof data.detail === "string" ? data.detail : "对比数据加载失败，请重试。";
+        throw new Error(detail);
+      }
+      const refreshed = await fetch("/api/audit/" + encodeURIComponent(jobId), { cache: "no-store" });
+      const job = await refreshed.json();
+      report = job.result;
+      renderIndustry(report.industry);
+      renderBenchmark(report.benchmark);
+      renderActions(report.actions);
     } catch (err) {
-      $("benchmark-status").textContent = "对比数据加载失败，请重试。";
+      const message = err && err.message && !/^HTTP|Failed to fetch/.test(err.message) ? err.message : "对比数据加载失败，请重试。";
+      if (payload.custom_industry) {
+        $("custom-industry-error").textContent = message;
+        $("custom-industry-error").hidden = false;
+        $("custom-industry-form").hidden = false;
+      }
+      $("benchmark-status").textContent = message;
+    } finally {
+      select.disabled = false;
+      $("custom-industry-submit").disabled = false;
     }
   }
 
+  $("industry-select").addEventListener("change", (event) => {
+    const value = event.target.value;
+    const form = $("custom-industry-form");
+    if (value === OTHER) {
+      form.hidden = false;
+      $("custom-industry").focus();
+      return;
+    }
+    form.hidden = true;
+    $("custom-industry-error").hidden = true;
+    if (value) rebenchmark({ industry: value }, (report.industry.option_labels || {})[value] || value);
+  });
+
+  $("custom-industry-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const text = $("custom-industry").value.trim();
+    if (!text) {
+      $("custom-industry-error").textContent = "请输入行业名称，例如：银行、宠物食品。";
+      $("custom-industry-error").hidden = false;
+      return;
+    }
+    rebenchmark({ custom_industry: text }, "“" + text + "”");
+  });
+
   $("rerun").addEventListener("click", async () => {
     $("rerun").disabled = true;
-    // An AI-identified industry is re-detected on re-run; only catalogue industries can be pinned.
-    const custom = report.industry.custom;
-    const pinned = custom && report.industry.selected === custom.name ? null : report.industry.selected;
+    // Industries outside the catalogue are re-detected on re-run; only catalogue industries can be pinned.
+    const selected = report.industry.selected;
+    const pinned = (report.industry.custom_names || []).includes(selected) ? null : selected;
     try {
       const response = await fetch("/api/audit", {
         method: "POST",
