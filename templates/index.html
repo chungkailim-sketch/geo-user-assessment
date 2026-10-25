@@ -2,18 +2,17 @@
 {% block content %}
 <section class="hero">
   <p class="eyebrow">GEO · AI搜索优化</p>
-  <h1>你的品牌，AI看得见吗？</h1>
+  <h1>您的品牌，AI看得见吗？</h1>
   <p class="lede">输入品牌官网，一键诊断品牌在AI大模型平台中被准确引用和推荐的潜力，并与行业标杆横向对比。</p>
 
   <form id="audit-form" class="audit-form" novalidate>
     <label class="sr-only" for="url">官网网址</label>
     <input id="url" name="url" type="text" inputmode="url" autocomplete="off" spellcheck="false"
-           value="https://www..com" required maxlength="2048" aria-describedby="url-hint">
+           value="https://www..com" required maxlength="2048">
     <button type="submit" id="submit" class="submit-round" aria-label="立即诊断">
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
   </form>
-  <p id="url-hint" class="hint">只需在 www. 与 .com 之间输入公司名称，例如 https://www.<strong>dyson</strong>.com</p>
   <p id="form-error" class="form-error" role="alert" hidden></p>
 </section>
 {% endblock %}

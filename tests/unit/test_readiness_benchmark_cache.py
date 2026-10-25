@@ -21,7 +21,7 @@ def citability_fixture(score=40.0, blocks=10, coverage=10.0, empty_pages=()):
 
 def authority_fixture(scores=None, confidence="full"):
     scores = scores or {"youtube": 20, "reddit": 40, "wikipedia": 90, "linkedin": 50, "other": 30}
-    weights = {"youtube": 0.25, "reddit": 0.25, "wikipedia": 0.20, "linkedin": 0.15, "other": 0.15}
+    weights = {"youtube": 0.20, "reddit": 0.20, "wikipedia": 0.15, "linkedin": 0.10, "other": 0.35}
     return {
         "score": sum(scores[k] * w for k, w in weights.items()),
         "confidence": confidence,

@@ -18,7 +18,7 @@ from app.scoring.readiness import PR_STRATEGY_ACTION
 log = logging.getLogger(__name__)
 
 AUDIT_TTL_SECONDS = 24 * 3600
-AUDIT_KEY = "audit:v5:"  # bump with SITE_KEY when result wording/shape changes
+AUDIT_KEY = "audit:v6:"  # bump with SITE_KEY when result wording/shape changes
 MEDIA_KEY = "media:v1:"
 LEADER_KEY = "industry-leader:v1:"
 FINISHED_JOB_TTL_SECONDS = 3600

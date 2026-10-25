@@ -10,7 +10,7 @@
     "leader domain": "标杆官网识别",
     keywords: "关键词识别",
     "ai classification": "AI识别",
-    "ai custom": "AI识别 · 新行业",
+    "ai custom": "AI识别",
     ambiguous: "关键词识别（待确认）",
     none: "未识别",
   };

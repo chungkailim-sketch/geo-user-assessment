@@ -1,6 +1,6 @@
 """Brand Authority score (GEO brand-mentions module).
 
-Authority = YouTube*0.25 + Reddit*0.25 + Wikipedia*0.20 + LinkedIn*0.15 + Other*0.15
+Authority = YouTube*0.20 + Reddit*0.20 + Wikipedia*0.15 + LinkedIn*0.10 + Other*0.35
 
 Wikipedia is always scored deterministically from the Wikimedia APIs. The other
 platforms are scored by Claude + web search when an API key is configured, and
@@ -11,10 +11,10 @@ from app.models import ClaudeAuthorityResponse
 from app.scoring.signals import OTHER_PLATFORMS, BrandSignals
 from app.scoring.wikipedia import WikiPresence, score_wikipedia
 
-PLATFORM_WEIGHTS = {"youtube": 0.25, "reddit": 0.25, "wikipedia": 0.20, "linkedin": 0.15, "other": 0.15}
+PLATFORM_WEIGHTS = {"youtube": 0.20, "reddit": 0.20, "wikipedia": 0.15, "linkedin": 0.10, "other": 0.35}
 PLATFORM_LABELS = {
     "youtube": "YouTube", "reddit": "Reddit", "wikipedia": "维基百科 / Wikidata",
-    "linkedin": "领英 LinkedIn", "other": "其他信源（新闻、点评、问答、GitHub）",
+    "linkedin": "领英 LinkedIn", "other": "其他信源（新闻、媒体、点评、问答等）",
 }
 OTHER_PLATFORM_NAMES = {
     "instagram": "Instagram", "x": "X（推特）", "facebook": "Facebook", "tiktok": "TikTok",

@@ -15,7 +15,7 @@ The scoring comes from two modules of the GEO (Generative Engine Optimization) a
 | Component | Weight | What is measured | Source logic |
 |---|---|---|---|
 | **Citability** | 55% | How easily AI systems can quote passages from the site. Every content block on up to 6 key pages is scored on answer-block quality (30), self-containment (25), structural readability (20), statistical density (15) and uniqueness (10). | `citability_scorer.py`, ported verbatim to `app/scoring/citability.py` |
-| **Authority** | 45% | Off-site entity signals that AI models rely on: YouTube 25%, Reddit 25%, Wikipedia/Wikidata 20%, LinkedIn 15%, Other (news, reviews, Quora, GitHub) 15% | `brand-mentions.md` rubric and `brand_scanner.py` |
+| **Authority** | 45% | Off-site entity signals that AI models rely on: YouTube 20%, Reddit 20%, Wikipedia/Wikidata 15%, LinkedIn 10%, Other (news, media, reviews, Q&A) 35% | `brand-mentions.md` rubric and `brand_scanner.py`; weights re-balanced towards news and media coverage |
 
 Score labels: 85+ Excellent · 70–84 Good · 55–69 Moderate · 40–54 Below average · under 40 Needs attention.
 
