@@ -165,13 +165,13 @@
     return mount(id, {
       type: "bar",
       data: {
-        labels: ["综合得分", "可引用性", "品牌权威度"],
+        labels: ["综合得分", "可引用性", ["品牌 AI", "引用权威度"]], // two lines so phones don't tilt the axis
         datasets: [ds(brandName, brandValues, t.s1), ds(leaderName, leaderValues, t.s2)],
       },
       options: Object.assign(baseOptions(t), {
         datasets: { bar: { categoryPercentage: 0.7, barPercentage: 0.92 } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: t.text }, border: { color: t.axis } },
+          x: { grid: { display: false }, ticks: { color: t.text, maxRotation: 0 }, border: { color: t.axis } },
           y: { min: 0, max: 100, ticks: { color: t.muted, stepSize: 25 }, grid: { color: t.grid }, border: { display: false } },
         },
       }),

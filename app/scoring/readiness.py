@@ -77,7 +77,7 @@ def build_actions(citability: dict, authority: dict, limit: int = 5) -> list[dic
     for platform in authority["platforms"]:
         gap = (100 - platform["score"]) * AUTHORITY_WEIGHT * platform["weight"]
         candidates.append({
-            "area": f"品牌权威度：{platform['label']}",
+            "area": f"品牌 AI 引用权威度：{platform['label']}",
             "action": RECOMMENDATIONS[platform["key"]][0],
             "current": platform["score"],
             "potential_lift": round(gap, 1),

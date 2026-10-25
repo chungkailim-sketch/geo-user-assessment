@@ -70,7 +70,7 @@ def test_actions_ranked_by_potential_lift():
     lifts = [a["potential_lift"] for a in ranked]
     assert lifts == sorted(lifts, reverse=True)
     assert len(ranked) == 5
-    assert ranked[0]["area"].startswith(("可引用性", "品牌权威度"))
+    assert ranked[0]["area"].startswith(("可引用性", "品牌 AI 引用权威度"))
 
 
 def test_pr_media_strategy_is_always_included():

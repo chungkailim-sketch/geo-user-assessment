@@ -224,8 +224,8 @@ h3 { font-size: 0.98rem; color: var(--text-secondary); margin-top: 1rem; letter-
 .swatch.s1 { background: var(--series-1); }
 .swatch.s2 { background: var(--series-2); }
 .gap-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem; }
-.gap-tile { border: 1px solid var(--border); border-radius: 16px; padding: 0.85rem 1.05rem; }
-.gap-tile .label { font-size: 0.82rem; color: var(--text-secondary); }
+.gap-tile { border: 1px solid var(--border); border-radius: 16px; padding: 0.85rem 1.05rem; display: flex; flex-direction: column; }
+.gap-tile .label { font-size: 0.82rem; color: var(--text-secondary); flex: 1; } /* a wrapped label keeps values aligned */
 .gap-tile .value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; }
 .gap-tile .detail { font-size: 0.82rem; color: var(--text-muted); }
 .gap-tile .value.ahead { color: var(--good-text); }

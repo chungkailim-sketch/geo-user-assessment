@@ -223,7 +223,7 @@
       $("gap-tiles").replaceChildren(
         gapTile("综合就绪度", b.gaps.overall, leader),
         gapTile("内容可引用性", b.gaps.citability, leader),
-        gapTile("品牌权威度", b.gaps.authority, leader)
+        gapTile("品牌 AI 引用权威度", b.gaps.authority, leader)
       );
     }
 
@@ -236,7 +236,7 @@
       platforms.map((p) => p.score), platforms.map((p) => ls.platforms[p.key] || 0)
     );
 
-    const rows = [["综合得分", brandVals[0], leaderVals[0]], ["内容可引用性", brandVals[1], leaderVals[1]], ["品牌权威度", brandVals[2], leaderVals[2]]]
+    const rows = [["综合得分", brandVals[0], leaderVals[0]], ["内容可引用性", brandVals[1], leaderVals[1]], ["品牌 AI 引用权威度", brandVals[2], leaderVals[2]]]
       .concat(platforms.map((p) => ["  " + (p.short_label || p.label), p.score, ls.platforms[p.key] || 0]));
     $("bench-table").replaceChildren(
       el("thead", {}, [el("tr", {}, [el("th", { text: "指标" }), el("th", { text: brand }), el("th", { text: leader }), el("th", { text: "差距" })])]),
@@ -270,7 +270,7 @@
       el("strong", { text: a.area }),
       media,
       el("span", { className: "strategy-text", text: a.action }),
-      a.tailored ? el("span", { className: "strategy-note", text: "基于AI联网检索的行业媒体引用分析生成" }) : null,
+      a.tailored ? el("span", { className: "strategy-note", text: "基于AI联网检索的行业媒体引用分析生成。生成的回答未经人工审核，仅供参考，可能包含错误、不准确或过时的信息，不构成任何专业建议。如有疑问，品牌可向罗德业务经理咨询。" }) : null,
     ]);
   }
 
