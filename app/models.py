@@ -3,14 +3,13 @@
 import re
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 PLATFORMS = ("youtube", "reddit", "wikipedia", "linkedin", "other")
 
 
 class AuditRequest(BaseModel):
     url: str = Field(min_length=3, max_length=2048)
-    industry: str | None = Field(default=None, max_length=64)
     refresh: bool = False
 
     @field_validator("url")
@@ -57,16 +56,17 @@ class PlatformAssessment(BaseModel):
         return [str(u)[:500] for u in value if str(u).lower().startswith(("https://", "http://"))][:8]
 
 
-class CustomIndustry(BaseModel):
-    """An industry (and its leader) that Claude identified outside the default catalogue."""
+MAX_ALTERNATES = 4
 
-    name: str = Field(min_length=2, max_length=48)
-    name_zh: str = Field(min_length=1, max_length=24)
+
+class LeaderCandidate(BaseModel):
+    """A brand that can serve as an industry's benchmark: the leader or a runner-up."""
+
     leader: str = Field(min_length=1, max_length=60)
     leader_zh: str = Field(min_length=1, max_length=40)
     leader_url: str = Field(max_length=200)
 
-    @field_validator("name", "name_zh", "leader", "leader_zh", mode="before")
+    @field_validator("leader", "leader_zh", mode="before")
     @classmethod
     def plain_text(cls, value: object) -> str:
         return re.sub(r"[\x00-\x1f\x7f<>\"]", " ", str(value)).strip()
@@ -80,6 +80,40 @@ class CustomIndustry(BaseModel):
             return site_root(value)  # shape check only; the fetcher still enforces public IPs
         except UnsafeURLError as exc:
             raise ValueError("invalid leader_url") from exc
+
+
+def valid_candidates(value: object) -> list[dict]:
+    """Keep the well-formed runner-ups from a Claude reply, dropping bad entries instead of failing."""
+    if not isinstance(value, list):
+        return []
+    kept = []
+    for item in value:
+        try:
+            kept.append(LeaderCandidate.model_validate(item).model_dump())
+        except ValidationError:
+            continue
+    return kept[:MAX_ALTERNATES]
+
+
+class IdentifiedIndustry(LeaderCandidate):
+    """A brand's industry, its category leader and the next strongest brands, as identified by Claude.
+
+    `alternates` are runner-ups in rank order, benchmarked instead when the leader's site can't be audited.
+    """
+
+    name: str = Field(min_length=2, max_length=48)
+    name_zh: str = Field(min_length=1, max_length=24)
+    alternates: list[dict] = Field(default_factory=list)
+
+    @field_validator("name", "name_zh", mode="before")
+    @classmethod
+    def plain_name(cls, value: object) -> str:
+        return re.sub(r"[\x00-\x1f\x7f<>\"]", " ", str(value)).strip()
+
+    @field_validator("alternates", mode="before")
+    @classmethod
+    def runner_ups(cls, value: object) -> list[dict]:
+        return valid_candidates(value)
 
 
 def _plain(value: object, limit: int) -> str:

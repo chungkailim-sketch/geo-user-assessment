@@ -1,6 +1,7 @@
 """Claude helpers for industry benchmarking and the tailored PR/media strategy.
 
-- `leader_for_industry`: a user typed an industry outside the catalogue; find its category leader.
+- `leader_for_industry`: a user typed their industry ("其他"); find that industry's category leader.
+- `more_leaders`: every named leader/runner-up site blocked automated access; name further brands.
 - `media_strategy`: with live web search, identify the media sources AI assistants cite most for the
   brand's industry and market, and write a PR strategy built around them.
 """
@@ -10,9 +11,8 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.models import CustomIndustry, MediaStrategy
+from app.models import IdentifiedIndustry, MediaStrategy, valid_candidates
 from app.scoring.claude_authority import (
-    IndustryAnswer,
     _final_text,
     extract_json,
     sanitize_brand,
@@ -30,17 +30,26 @@ A user benchmarking the brand below typed their industry as: "{industry}"
 Brand: {brand}
 Website: {domain}
 
-Default industries already in the catalogue (English name = Chinese name):
-{catalogue}
+Identify that industry precisely and its globally recognised category leader: the brand AI
+assistants most often cite and recommend for that category, with its official global homepage
+(a website that can be audited, not a social profile). Then list the next 3 strongest brands in that
+industry, in rank order, with their official homepages; they are benchmarked instead if the leader's
+website blocks automated access.
 
-If the typed industry is the same as a default industry, answer with that default.
-Otherwise identify the industry precisely and its globally recognised category leader: the brand
-AI assistants most often cite for that category, with its official global homepage.
+Respond with ONLY a JSON object, no prose, in exactly this shape:
+{{"name": "<industry, English, 1-4 words>", "name_zh": "<industry, Simplified Chinese, 2-8 characters>",
+  "leader": "<leader brand>", "leader_zh": "<leader name commonly used in Chinese>", "leader_url": "https://...",
+  "alternates": [{{"leader": "<brand>", "leader_zh": "<Chinese name>", "leader_url": "https://..."}}]}}
+"""
 
-Respond with ONLY a JSON object, no prose, in one of these two shapes:
-{{"industry": "<exact default English name>"}}
-{{"industry": "other", "custom": {{"name": "<English, 1-4 words>", "name_zh": "<Simplified Chinese, 2-8 characters>",
-  "leader": "<leader brand>", "leader_zh": "<leader name commonly used in Chinese>", "leader_url": "https://..."}}}}
+MORE_LEADERS_PROMPT = """The websites of these leading brands in the "{industry}" industry block automated access, so they can't
+be audited as the industry benchmark: {tried}.
+
+Name the next {count} strongest brands in that industry, in rank order, excluding the ones above. Prefer
+brands whose official global homepage is a normal public website.
+
+Respond with ONLY a JSON object, no prose, in exactly this shape:
+{{"alternates": [{{"leader": "<brand>", "leader_zh": "<name commonly used in Chinese>", "leader_url": "https://..."}}]}}
 """
 
 MEDIA_PROMPT = """\
@@ -75,32 +84,37 @@ Write every Chinese field in Simplified Chinese; keep outlet and brand names as-
 
 
 async def leader_for_industry(
-    client: Any, model: str, industry_text: str, catalogue: list[dict], brand: str, domain: str
-) -> IndustryAnswer | None:
-    """Map a user-typed industry to a catalogue industry or a new one with its leader."""
-    lines = "\n".join(f"- {i['name']} = {i['name_zh']}" for i in catalogue)
-    prompt = LEADER_PROMPT.format(
-        industry=industry_text.replace('"', "'"), brand=sanitize_brand(brand), domain=domain, catalogue=lines
-    )
+    client: Any, model: str, industry_text: str, brand: str, domain: str
+) -> IdentifiedIndustry | None:
+    """Identify the leader of an industry the user typed in."""
+    prompt = LEADER_PROMPT.format(industry=industry_text.replace('"', "'"), brand=sanitize_brand(brand), domain=domain)
     try:
         response = await client.messages.create(
-            model=model, max_tokens=400, messages=[{"role": "user", "content": prompt}]
+            model=model, max_tokens=700, messages=[{"role": "user", "content": prompt}]
         )
-        data = extract_json(_final_text(response.content))
-        names = {i["name"].lower(): i["name"] for i in catalogue}
-        zh_names = {i["name_zh"]: i["name"] for i in catalogue}
-        chosen = str(data.get("industry", "")).strip().lower()
-        if chosen in names:
-            return IndustryAnswer(names[chosen])
-        custom = CustomIndustry.model_validate(data.get("custom"))
-        if custom.name.lower() in names or custom.name_zh in zh_names:
-            return IndustryAnswer(names.get(custom.name.lower()) or zh_names[custom.name_zh])
-        return IndustryAnswer(custom.name, custom)
+        return IdentifiedIndustry.model_validate(extract_json(_final_text(response.content)))
     except (ValueError, ValidationError) as exc:
         log.warning("Claude leader answer invalid for industry %r: %s", industry_text, exc)
     except Exception as exc:  # network/API errors are reported to the user as a retryable failure
         log.warning("Claude leader lookup failed for industry %r: %s", industry_text, type(exc).__name__)
     return None
+
+
+async def more_leaders(client: Any, model: str, industry: str, tried: list[str], count: int = 3) -> list[dict]:
+    """Further benchmark candidates for an industry, excluding brands already tried; [] on failure."""
+    prompt = MORE_LEADERS_PROMPT.format(
+        industry=industry.replace('"', "'"), tried=", ".join(sanitize_brand(t) for t in tried), count=count
+    )
+    try:
+        response = await client.messages.create(
+            model=model, max_tokens=500, messages=[{"role": "user", "content": prompt}]
+        )
+        return valid_candidates(extract_json(_final_text(response.content)).get("alternates"))
+    except ValueError as exc:
+        log.warning("Claude extra leaders invalid for industry %r: %s", industry, exc)
+    except Exception as exc:  # the benchmark then reports the leader as unavailable
+        log.warning("Claude extra leaders failed for industry %r: %s", industry, type(exc).__name__)
+    return []
 
 
 async def media_strategy(

@@ -6,14 +6,7 @@
   const jobId = app.dataset.jobId;
   const POLL_MS = 2000;
   const MAX_POLL_ERRORS = 5;
-  const METHOD_LABELS = {
-    "leader domain": "标杆官网识别",
-    keywords: "关键词识别",
-    "ai classification": "AI识别",
-    "ai custom": "AI识别",
-    ambiguous: "关键词识别（待确认）",
-    none: "未识别",
-  };
+  const METHOD_LABELS = { ai: "AI识别", none: "未识别" };
   const OTHER = "__other__";
   const $ = (id) => document.getElementById(id);
   let report = null;
@@ -105,10 +98,9 @@
     const select = $("industry-select");
     select.replaceChildren(el("option", { value: "", text: "选择行业…" }));
     const labels = industry.option_labels || {};
-    const detectedCustom = industry.custom ? industry.custom.name : null;
-    const customNames = industry.custom_names || [];
+    const customNames = industry.custom_names || []; // industries the user typed in via "其他"
     industry.options.forEach((name) => {
-      const suffix = name === detectedCustom ? "（AI识别）" : customNames.includes(name) ? "（自定义）" : "";
+      const suffix = customNames.includes(name) ? "（自定义）" : "";
       const option = el("option", { value: name, text: (labels[name] || name) + suffix });
       if (name === industry.selected) option.selected = true;
       select.appendChild(option);
@@ -116,7 +108,7 @@
     select.appendChild(el("option", { value: OTHER, text: "其他（手动输入）…" }));
     $("industry-method").textContent = industry.selected === industry.detected
       ? (METHOD_LABELS[industry.method] || "自动识别")
-      : customNames.includes(industry.selected) && industry.selected !== detectedCustom ? "手动输入" : "手动选择";
+      : customNames.includes(industry.selected) ? "手动输入" : "手动选择";
     $("custom-industry-form").hidden = true;
   }
 
@@ -198,7 +190,7 @@
     const body = $("benchmark-body");
     if (!b) {
       $("benchmark-title").textContent = "行业标杆对比";
-      status.textContent = "请在上方选择所属行业，与该行业标杆品牌进行对比。";
+      status.textContent = "暂未识别所属行业，无法进行行业标杆对比。您可以在上方选择“其他（手动输入）”指定所属行业。";
       body.hidden = true;
       return;
     }
@@ -219,7 +211,10 @@
       status.textContent = "";
       $("gap-tiles").replaceChildren(el("div", { className: "leader-banner", text: "你就是" + (b.industry_zh || b.industry) + "行业的标杆品牌。" }));
     } else {
-      status.textContent = "";
+      const from = b.fallback_from;
+      status.textContent = from
+        ? "原行业标杆" + (from.leader_zh || from.leader) + "的官网限制自动访问，已改为对标行业内的下一位领先品牌" + leader + "。"
+        : "";
       $("gap-tiles").replaceChildren(
         gapTile("综合就绪度", b.gaps.overall, leader),
         gapTile("内容可引用性", b.gaps.citability, leader),
@@ -350,14 +345,11 @@
 
   $("rerun").addEventListener("click", async () => {
     $("rerun").disabled = true;
-    // Industries outside the catalogue are re-detected on re-run; only catalogue industries can be pinned.
-    const selected = report.industry.selected;
-    const pinned = (report.industry.custom_names || []).includes(selected) ? null : selected;
     try {
       const response = await fetch("/api/audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: report.url, industry: pinned, refresh: true }),
+        body: JSON.stringify({ url: report.url, refresh: true }), // the industry is re-identified by AI
       });
       const data = await response.json();
       if (response.ok) window.location.assign(data.results_url);

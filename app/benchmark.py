@@ -17,15 +17,21 @@ def leader_summary(result: dict) -> dict:
     }
 
 
-def compare(brand: dict, leader: dict | None, industry: Industry, reason: str | None = None) -> dict:
+def compare(
+    brand: dict, leader: dict | None, industry: Industry, reason: str | None = None,
+    fallback_from: Industry | None = None,
+) -> dict:
+    """`fallback_from` is the industry as first identified, when its leader's site couldn't be audited
+    and `industry` carries the runner-up benchmarked instead."""
     base = {
         "industry": industry.name,
         "industry_zh": industry.name_zh,
         "leader": industry.leader,
         "leader_zh": industry.leader_zh,
         "leader_url": industry.leader_url,
-        "custom": industry.custom,
         "is_leader": industry.is_leader(brand["domain"]),
+        "fallback_from": ({"leader": fallback_from.leader, "leader_zh": fallback_from.leader_zh}
+                          if fallback_from else None),
     }
     if base["is_leader"]:
         return {**base, "status": "ok", "leader_scores": leader_summary(brand), "gaps": _gaps(brand, brand)}

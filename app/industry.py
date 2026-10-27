@@ -1,104 +1,63 @@
-"""Industry catalogue and keyword-based industry detection."""
+"""An industry and its category leader, as identified by AI for each audited brand.
 
-import json
-import re
-from dataclasses import dataclass
-from functools import lru_cache
+There is no fixed catalogue: Claude identifies the brand's industry and that industry's leader from
+the website URL and content (or from an industry the user types in), and the leader's site is then
+audited with the same GEO pipeline for the benchmark. Claude also ranks the next strongest brands
+(`alternates`), which are benchmarked instead when the leader's site blocks automated access.
+"""
 
-from app.config import ROOT_DIR
+from dataclasses import dataclass, replace
+
 from app.scoring.signals import registrable_domain
-
-INDUSTRIES_PATH = ROOT_DIR / "config" / "industries.json"
 
 
 @dataclass(frozen=True)
 class Industry:
     name: str
+    name_zh: str
     leader: str
+    leader_zh: str
     leader_url: str
-    keywords: tuple[str, ...]
-    aliases: tuple[str, ...] = ()
-    name_zh: str = ""
-    leader_zh: str = ""
-    custom: bool = False  # identified by AI for a brand outside the default catalogue
+    alternates: tuple[dict, ...] = ()  # runner-ups in rank order: {leader, leader_zh, leader_url}
 
     @property
     def leader_domain(self) -> str:
         return registrable_domain(self.leader_url)
 
     def is_leader(self, domain: str) -> bool:
-        return domain == self.leader_domain or domain in self.aliases
+        return domain == self.leader_domain
 
     def to_dict(self) -> dict:
         return {"name": self.name, "name_zh": self.name_zh, "leader": self.leader,
-                "leader_zh": self.leader_zh, "leader_url": self.leader_url}
+                "leader_zh": self.leader_zh, "leader_url": self.leader_url, "alternates": list(self.alternates)}
+
+    def candidates(self) -> list[dict]:
+        """The leader, then the runner-ups, de-duplicated by domain."""
+        seen: set[str] = set()
+        ranked = []
+        for candidate in [{"leader": self.leader, "leader_zh": self.leader_zh, "leader_url": self.leader_url},
+                          *self.alternates]:
+            domain = registrable_domain(candidate["leader_url"])
+            if domain not in seen:
+                seen.add(domain)
+                ranked.append(candidate)
+        return ranked
+
+    def with_leader(self, candidate: dict) -> "Industry":
+        """This industry benchmarked against another candidate (a runner-up standing in for the leader)."""
+        return replace(self, leader=candidate["leader"], leader_zh=candidate.get("leader_zh") or candidate["leader"],
+                       leader_url=candidate["leader_url"])
 
     @classmethod
-    def from_custom(cls, data: dict) -> "Industry":
-        return cls(data["name"], data["leader"], data["leader_url"], (), (),
-                   data.get("name_zh") or data["name"], data.get("leader_zh") or data["leader"], custom=True)
+    def from_dict(cls, data: dict) -> "Industry":
+        return cls(data["name"], data.get("name_zh") or data["name"], data["leader"],
+                   data.get("leader_zh") or data["leader"], data["leader_url"],
+                   tuple(data.get("alternates") or ()))
 
 
-@lru_cache
-def load_industries() -> tuple[Industry, ...]:
-    data = json.loads(INDUSTRIES_PATH.read_text(encoding="utf-8"))
-    return tuple(
-        Industry(
-            i["name"], i["leader"], i["leader_url"],
-            tuple(k.lower() for k in i["keywords"]), tuple(i.get("aliases", [])),
-            i.get("name_zh", i["name"]), i.get("leader_zh", i["leader"]),
-        )
-        for i in data["industries"]
-    )
-
-
-def get_industry(name: str | None) -> Industry | None:
+def resolve_industry(name: str | None, *candidates: dict) -> Industry | None:
+    """The industry with this name among those stored with an audit (AI-identified or typed in)."""
     if not name:
         return None
-    return next((i for i in load_industries() if i.name.lower() == name.lower()), None)
-
-
-def resolve_industry(name: str | None, *customs: dict) -> Industry | None:
-    """A catalogue industry by name, else one of the custom industries stored with an audit."""
-    if found := get_industry(name):
-        return found
-    if not name:
-        return None
-    custom = next((c for c in customs if c and c.get("name", "").lower() == name.lower()), None)
-    return Industry.from_custom(custom) if custom else None
-
-
-def industry_for_leader_domain(domain: str) -> Industry | None:
-    return next((i for i in load_industries() if i.is_leader(domain)), None)
-
-
-def keyword_scores(text: str) -> dict[str, int]:
-    lowered = text.lower()
-    scores = {}
-    for industry in load_industries():
-        scores[industry.name] = sum(
-            len(re.findall(r"(?<![a-z])" + re.escape(keyword) + r"(?![a-z])", lowered))
-            for keyword in industry.keywords
-        )
-    return scores
-
-
-@dataclass(frozen=True)
-class Detection:
-    industry: str
-    method: str
-    scores: dict
-
-
-def detect_industry(domain: str, weighted_text: str) -> Detection | None:
-    """Detect by leader domain first, then keyword hits. Returns None when ambiguous."""
-    leader = industry_for_leader_domain(domain)
-    if leader:
-        return Detection(leader.name, "leader domain", {})
-    scores = keyword_scores(weighted_text)
-    ranked = sorted(scores.items(), key=lambda item: item[1], reverse=True)
-    best, best_score = ranked[0]
-    runner_up = ranked[1][1] if len(ranked) > 1 else 0
-    if best_score == 0 or best_score < runner_up * 1.25:
-        return Detection(best, "ambiguous", scores) if best_score else None
-    return Detection(best, "keywords", scores)
+    match = next((c for c in candidates if c and c.get("name", "").lower() == name.lower()), None)
+    return Industry.from_dict(match) if match else None

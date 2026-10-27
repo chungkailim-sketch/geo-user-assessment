@@ -4,7 +4,7 @@ import pytest
 
 from app.benchmark import compare, leader_summary
 from app.cache import JsonCache
-from app.industry import get_industry
+from app.industry import Industry
 from app.scoring.readiness import build_actions, build_findings, readiness_label, readiness_score
 
 pytestmark = pytest.mark.unit
@@ -83,8 +83,12 @@ def test_pr_media_strategy_is_always_included():
         assert "品牌叙事" in strategy["action"] and "AI" in strategy["action"]
 
 
+SMART_CLEANING = Industry("Smart Cleaning", "智能清洁", "Dyson", "戴森", "https://www.dyson.com/")
+COFFEE = Industry("Coffee Chains", "咖啡连锁", "Starbucks", "星巴克", "https://www.starbucks.com/")
+
+
 def test_compare_brand_with_leader():
-    industry = get_industry("Smart Cleaning")
+    industry = SMART_CLEANING
     brand = audit_fixture("acme.example", 40, 35, 46)
     leader = audit_fixture("dyson.com", 70, 60, 82)
     result = compare(brand, leader, industry)
@@ -95,14 +99,14 @@ def test_compare_brand_with_leader():
 
 
 def test_compare_when_brand_is_leader():
-    industry = get_industry("Smart Cleaning")
+    industry = SMART_CLEANING
     brand = audit_fixture("dyson.com", 70, 60, 82)
     result = compare(brand, None, industry)
     assert result["is_leader"] and result["gaps"]["overall"] == 0
 
 
 def test_compare_leader_unavailable():
-    result = compare(audit_fixture("acme.example", 40, 35, 46), None, get_industry("F&B"))
+    result = compare(audit_fixture("acme.example", 40, 35, 46), None, COFFEE)
     assert result["status"] == "unavailable" and result["gaps"] is None
 
 
@@ -122,10 +126,10 @@ def test_cache_roundtrip_and_ttl(tmp_path):
 
 
 def test_compare_unavailable_carries_reason():
-    result = compare(audit_fixture("acme.example", 40, 35, 46), None, get_industry("Culture / Lifestyle"), reason="blocked")
+    result = compare(audit_fixture("acme.example", 40, 35, 46), None, COFFEE, reason="blocked")
     assert result["reason"] == "blocked"
 
 
-def test_compare_treats_alias_domain_as_leader():
-    result = compare(audit_fixture("sony.com", 60, 50, 70), None, get_industry("Consumer Electronics"))
-    assert result["is_leader"]
+def test_compare_reports_ai_identified_industry_and_leader():
+    result = compare(audit_fixture("acme.example", 40, 35, 46), None, SMART_CLEANING)
+    assert (result["industry_zh"], result["leader_zh"], result["leader_url"]) == ("智能清洁", "戴森", "https://www.dyson.com/")

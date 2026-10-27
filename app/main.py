@@ -19,7 +19,6 @@ from app.audit import Auditor
 from app.cache import JsonCache
 from app.config import ROOT_DIR, Settings, get_settings
 from app.fetch.safe_fetch import SafeFetcher, UnsafeURLError, build_page_client, normalize_url
-from app.industry import get_industry, load_industries
 from app.jobs import CustomIndustryError, JobManager, QueueFullError
 from app.models import AuditRequest, JobStatus
 
@@ -47,7 +46,6 @@ def asset_version() -> str:
 
 
 templates.env.globals["asset_v"] = asset_version()
-templates.env.globals["industries"] = load_industries()  # the glossary lists the categories on every page
 
 
 def client_ip(request: Request) -> str:
@@ -117,7 +115,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request):
-        return templates.TemplateResponse(request, "index.html", {"industries": load_industries()})
+        return templates.TemplateResponse(request, "index.html")
 
     @app.get("/results/{job_id}", response_class=HTMLResponse)
     async def results(request: Request, job_id: str):
@@ -128,13 +126,6 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
     async def health():
         return {"ok": True}
 
-    @app.get("/api/industries")
-    async def industries():
-        return [
-            {"name": i.name, "name_zh": i.name_zh, "leader": i.leader, "leader_zh": i.leader_zh, "leader_url": i.leader_url}
-            for i in load_industries()
-        ]
-
     @app.post("/api/audit")
     @limiter.limit(settings.rate_limit if settings.rate_limit != "off" else "1000/second")
     async def start_audit(request: Request, body: AuditRequest):
@@ -142,9 +133,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
             url = normalize_url(body.url)
         except UnsafeURLError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        if body.industry and get_industry(body.industry) is None:
-            raise HTTPException(status_code=400, detail="未知行业。")
-        job_id = request.app.state.jobs.start(url, body.industry, refresh=body.refresh)
+        job_id = request.app.state.jobs.start(url, refresh=body.refresh)
         return {"job_id": job_id, "results_url": f"/results/{job_id}"}
 
     @app.get("/api/audit/{job_id}", response_model=JobStatus)

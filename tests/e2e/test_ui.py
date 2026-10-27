@@ -12,7 +12,7 @@ import pytest
 import uvicorn
 
 from app.main import create_app
-from tests.integration.test_api import RoutingClaude
+from tests.integration.test_api import SMART_CLEANING, RoutingClaude
 from tests.unit.test_claude_strategy import BANKING
 
 pytestmark = pytest.mark.e2e
@@ -28,7 +28,7 @@ def _free_port() -> int:
 
 @pytest.fixture
 def live_server(test_settings, mock_transport):
-    claude = RoutingClaude({"industry": "Smart Cleaning"}, {"industry": "other", "custom": BANKING})
+    claude = RoutingClaude(SMART_CLEANING, BANKING)
     app = create_app(test_settings, claude_client=claude, transport=mock_transport)
     port = _free_port()
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
@@ -65,8 +65,11 @@ def test_assessment_flow(live_server, viewport):
         page.wait_for_url("**/results/*")
         page.wait_for_selector("#report:not([hidden])", timeout=20000)
         assert page.text_content("#brand-name") == "Acme Clean"
+        # AI identified the industry and its leader; the leader site was audited and compared.
         assert page.input_value("#industry-select") == "Smart Cleaning"
+        assert page.text_content("#industry-method") == "AI识别"
         assert "戴森" in page.text_content("#benchmark-title")
+        assert page.locator("#gap-tiles .gap-tile").count() == 3
         assert page.text_content("#score-label") in ("优秀", "良好", "中等", "偏低", "亟需优化")
         for canvas in ("gauge", "cit-radar", "grade-bar", "platform-bar", "bench-bar", "bench-radar"):
             assert page.eval_on_selector(f"#{canvas}", "c => c.width > 0 && c.height > 0"), canvas
@@ -96,7 +99,7 @@ def test_assessment_flow(live_server, viewport):
         assert page.locator("#actions li.strategy .media-list li").count() == 3
         assert "什么值得买" in page.text_content("#actions li.strategy")
 
-        # "其他": type an industry outside the catalogue; AI finds its leader and the report updates.
+        # "其他": type an industry; AI finds that industry's leader and the report updates.
         assert page.locator("#custom-industry-form").is_hidden()
         page.select_option("#industry-select", "__other__")
         assert page.locator("#custom-industry-form").is_visible()
@@ -107,9 +110,12 @@ def test_assessment_flow(live_server, viewport):
         assert page.text_content("#industry-method") == "手动输入"
         assert "银行金融" in page.text_content("#actions li.strategy .media-title")
 
-        page.select_option("#industry-select", "F&B")
-        # A selector wait, not wait_for_function: the app's CSP (correctly) forbids string eval.
-        page.locator("#benchmark-title", has_text="星巴克").wait_for(timeout=20000)
-        assert "暂时无法评估星巴克" in page.text_content("#benchmark-status")
+        assert "暂时无法评估摩根大通" in page.text_content("#benchmark-status")  # mock site has no JPMorgan
+
+        # Back to the AI-identified industry. A selector wait, not wait_for_function: the CSP forbids eval.
+        assert page.locator("#industry-select option").all_inner_texts()[1:] == ["智能清洁", "银行金融（自定义）", "其他（手动输入）…"]
+        page.select_option("#industry-select", "Smart Cleaning")
+        page.locator("#benchmark-title", has_text="戴森").wait_for(timeout=20000)
+        assert page.text_content("#industry-method") == "AI识别"
         browser.close()
     assert not errors, errors

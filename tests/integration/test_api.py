@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-from tests.conftest import AUTHORITY_PAYLOAD, FakeClaude, claude_text_response
+from tests.conftest import AUTHORITY_PAYLOAD, FakeClaude, claude_text_response  # noqa: F401
 
 pytestmark = pytest.mark.integration
 
@@ -28,91 +28,24 @@ def make_client(test_settings, mock_transport):
     return factory
 
 
-def test_full_audit_flow_with_claude(make_client):
-    claude = FakeClaude([
-        claude_text_response(AUTHORITY_PAYLOAD),  # brand authority
-        claude_text_response({"industry": "Smart Cleaning"}),  # brand industry
-        claude_text_response(AUTHORITY_PAYLOAD),  # leader authority (leader domain: no industry call)
-    ])
-    with make_client(claude) as client:
-        start = client.post("/api/audit", json={"url": "www.acmeclean.example"})
-        assert start.status_code == 200
-        job = wait_for(client, start.json()["job_id"])
-
-    assert job["status"] == "done", job
-    result = job["result"]
-    assert result["brand_name"] == "Acme Clean"
-    assert result["domain"] == "acmeclean.example"
-    assert result["score"] == round(result["citability"]["score"] * 0.55 + result["authority"]["score"] * 0.45, 1)
-    assert result["authority"]["confidence"] == "full"
-    assert result["industry"]["detected"] == "Smart Cleaning"
-    assert result["industry"]["selected"] == "Smart Cleaning"
-    assert result["industry"]["method"] == "ai classification"
-    assert not any("/faq" in url for url in result["crawl"]["pages"])  # blocked by robots.txt
-    benchmark = result["benchmark"]
-    assert benchmark["leader"] == "Dyson" and benchmark["status"] == "ok"
-    assert benchmark["gaps"]["overall"] == round(result["score"] - benchmark["leader_scores"]["score"], 1)
-
-
-def test_audit_without_claude_uses_limited_authority_and_cache(make_client):
-    with make_client() as client:
-        first = wait_for(client, client.post("/api/audit", json={"url": "https://www.acmeclean.example"}).json()["job_id"])
-        second = wait_for(client, client.post("/api/audit", json={"url": "https://www.acmeclean.example"}).json()["job_id"])
-    assert first["result"]["authority"]["confidence"] == "limited"
-    assert first["result"]["audited_at"] == second["result"]["audited_at"]  # served from cache
-
-
-def test_explicit_industry_and_rebenchmark(make_client):
-    with make_client() as client:
-        job = wait_for(client, client.post(
-            "/api/audit", json={"url": "https://www.acmeclean.example", "industry": "Smart Cleaning"}).json()["job_id"])
-        assert job["result"]["industry"]["selected"] == "Smart Cleaning"
-
-        # Switch to F&B: Starbucks host is unknown to the mock, so the leader audit fails gracefully.
-        response = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "F&B"})
-        assert response.status_code == 200
-        assert response.json()["leader"] == "Starbucks"
-        assert response.json()["status"] == "unavailable"
-        refreshed = client.get(f"/api/audit/{job['job_id']}").json()
-        assert refreshed["result"]["industry"]["selected"] == "F&B"
-
-
-def test_industry_outside_catalogue_is_identified_and_benchmarked(make_client):
-    custom = {"name": "Home Robotics", "name_zh": "家用机器人", "leader": "iRobot",
-              "leader_zh": "iRobot", "leader_url": "https://www.irobot.example"}
-    claude = FakeClaude([
-        claude_text_response(AUTHORITY_PAYLOAD),
-        claude_text_response({"industry": "other", "custom": custom}),
-    ])
-    with make_client(claude) as client:
-        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
-        industry = job["result"]["industry"]
-        assert industry["method"] == "ai custom" and industry["selected"] == "Home Robotics"
-        assert industry["options"][0] == "Home Robotics" and len(industry["options"]) == 8
-        assert industry["option_labels"]["Home Robotics"] == "家用机器人"
-        benchmark = job["result"]["benchmark"]
-        assert benchmark["leader"] == "iRobot" and benchmark["custom"] is True
-        assert benchmark["status"] == "unavailable"  # the mock site doesn't serve irobot.example
-
-        # Switching to a catalogue industry and back to the AI-identified one both work.
-        assert client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "F&B"}).json()["leader"] == "Starbucks"
-        back = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Home Robotics"})
-        assert back.status_code == 200 and back.json()["leader_zh"] == "iRobot"
-        unknown = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Banking"})
-        assert unknown.status_code == 404
+SMART_CLEANING = {"name": "Smart Cleaning", "name_zh": "智能清洁", "leader": "Dyson",
+                  "leader_zh": "戴森", "leader_url": "https://www.dyson.com"}
+PET_FOOD = {"name": "Pet Food", "name_zh": "宠物食品", "leader": "Purina",
+            "leader_zh": "普瑞纳", "leader_url": "https://www.purina.example"}
 
 
 class RoutingClaude:
     """Fake Claude that answers by prompt type, so call order doesn't matter."""
 
-    def __init__(self, industry_answer: dict, leader_answer: dict | None = None):
+    def __init__(self, industry_answer: dict, leader_answer: dict | None = None, more: list | None = None):
         from tests.unit.test_claude_strategy import MEDIA_PAYLOAD
 
         self.routes = [
             ("off-site authority", AUTHORITY_PAYLOAD),
-            ("classifying a brand's industry", industry_answer),
-            ("typed their industry", leader_answer or {"industry": "F&B"}),
+            ("identifying a brand's industry", industry_answer),
+            ("typed their industry", leader_answer or PET_FOOD),
             ("PR and GEO", MEDIA_PAYLOAD),
+            ("block automated access, so they can't", {"alternates": more or []}),
         ]
         self.calls: list[dict] = []
         self.messages = self
@@ -127,8 +60,106 @@ class RoutingClaude:
         return sum(marker in call["messages"][0]["content"] for call in self.calls)
 
 
+def test_full_audit_flow_benchmarks_against_ai_identified_leader(make_client):
+    claude = RoutingClaude(SMART_CLEANING)
+    with make_client(claude) as client:
+        start = client.post("/api/audit", json={"url": "www.acmeclean.example"})
+        assert start.status_code == 200
+        job = wait_for(client, start.json()["job_id"])
+
+    assert job["status"] == "done", job
+    result = job["result"]
+    assert result["brand_name"] == "Acme Clean"
+    assert result["domain"] == "acmeclean.example"
+    assert result["score"] == round(result["citability"]["score"] * 0.55 + result["authority"]["score"] * 0.45, 1)
+    assert result["authority"]["confidence"] == "full"
+    industry = result["industry"]
+    assert industry["method"] == "ai" and industry["detected"] == industry["selected"] == "Smart Cleaning"
+    assert industry["options"] == ["Smart Cleaning"] and industry["custom_names"] == []
+    assert not any("/faq" in url for url in result["crawl"]["pages"])  # blocked by robots.txt
+    # The AI-identified leader's site was audited with the same GEO pipeline, then compared.
+    benchmark = result["benchmark"]
+    assert benchmark["leader"] == "Dyson" and benchmark["status"] == "ok" and not benchmark["is_leader"]
+    assert benchmark["leader_scores"]["url"] == "https://www.dyson.com/"
+    assert benchmark["gaps"]["overall"] == round(result["score"] - benchmark["leader_scores"]["score"], 1)
+    assert claude.count("off-site authority") == 2  # brand + leader
+
+
+def test_audit_without_claude_has_no_industry_or_benchmark(make_client):
+    with make_client() as client:
+        first = wait_for(client, client.post("/api/audit", json={"url": "https://www.acmeclean.example"}).json()["job_id"])
+        second = wait_for(client, client.post("/api/audit", json={"url": "https://www.acmeclean.example"}).json()["job_id"])
+    assert first["result"]["authority"]["confidence"] == "limited"
+    assert first["result"]["audited_at"] == second["result"]["audited_at"]  # served from cache
+    assert first["result"]["industry"]["method"] == "none" and first["result"]["industry"]["options"] == []
+    assert first["result"]["benchmark"] is None
+
+
+def test_failed_industry_identification_is_not_cached(make_client):
+    claude = RoutingClaude({"name": "no leader"})  # invalid answer
+    with make_client(claude) as client:
+        first = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+        wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    assert first["result"]["benchmark"] is None and first["result"]["degraded"] is True
+    assert claude.count("identifying a brand's industry") == 2  # re-identified instead of serving the cache
+
+
+def test_leader_site_is_its_own_benchmark(make_client):
+    with make_client(RoutingClaude(SMART_CLEANING)) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "https://www.dyson.com"}).json()["job_id"])
+    assert job["result"]["benchmark"]["is_leader"] is True
+    assert job["result"]["industry"]["method"] == "ai"
+
+
+def test_leader_unreachable_is_reported_not_fatal(make_client):
+    with make_client(RoutingClaude(PET_FOOD)) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    benchmark = job["result"]["benchmark"]
+    assert job["status"] == "done" and benchmark["leader"] == "Purina" and benchmark["status"] == "unavailable"
+
+
+BOT_WALLED = {**SMART_CLEANING, "leader": "Shark", "leader_zh": "鲨客", "leader_url": "https://www.botwall.example"}
+DYSON_CANDIDATE = {"leader": "Dyson", "leader_zh": "戴森", "leader_url": "https://www.dyson.com"}
+
+
+def test_blocked_leader_falls_back_to_next_strongest_brand(make_client):
+    claude = RoutingClaude({**BOT_WALLED, "alternates": [DYSON_CANDIDATE]})
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    benchmark = job["result"]["benchmark"]
+    assert benchmark["status"] == "ok" and benchmark["leader"] == "Dyson"
+    assert benchmark["leader_scores"]["url"] == "https://www.dyson.com/"
+    assert benchmark["fallback_from"] == {"leader": "Shark", "leader_zh": "鲨客"}
+    assert claude.count("block automated access, so they can't") == 0  # runner-up was enough
+
+
+def test_claude_names_more_brands_when_every_candidate_is_blocked(make_client):
+    claude = RoutingClaude(BOT_WALLED, more=[DYSON_CANDIDATE])
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    assert job["result"]["benchmark"]["leader"] == "Dyson" and job["result"]["benchmark"]["status"] == "ok"
+    assert claude.count("block automated access, so they can't") == 1
+
+
+def test_leader_site_without_readable_content_is_skipped(make_client):
+    js_only = {"leader": "Roborock", "leader_zh": "石头科技", "leader_url": "https://www.jsonly.example"}
+    claude = RoutingClaude({**SMART_CLEANING, **js_only, "alternates": [DYSON_CANDIDATE]})
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    benchmark = job["result"]["benchmark"]
+    assert benchmark["leader"] == "Dyson" and benchmark["fallback_from"]["leader"] == "Roborock"
+
+
+def test_brand_that_is_a_runner_up_is_not_benchmarked_against_itself(make_client):
+    acme = {"leader": "Acme Clean", "leader_zh": "艾可", "leader_url": "https://www.acmeclean.example"}
+    claude = RoutingClaude({**BOT_WALLED, "alternates": [acme, DYSON_CANDIDATE]})
+    with make_client(claude) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
+    assert job["result"]["benchmark"]["leader"] == "Dyson"
+
+
 def test_strategy_is_tailored_with_most_cited_media(make_client):
-    claude = RoutingClaude({"industry": "Smart Cleaning"})
+    claude = RoutingClaude(SMART_CLEANING)
     with make_client(claude) as client:
         job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
         strategy = job["result"]["actions"][-1]
@@ -151,10 +182,7 @@ def test_strategy_falls_back_to_generic_without_claude(make_client):
 
 
 def test_manual_other_industry_finds_leader_and_retailors_strategy(make_client):
-    claude = RoutingClaude({"industry": "Smart Cleaning"},
-                           {"industry": "other", "custom": {"name": "Pet Food", "name_zh": "宠物食品",
-                                                            "leader": "Purina", "leader_zh": "普瑞纳",
-                                                            "leader_url": "https://www.purina.example"}})
+    claude = RoutingClaude(SMART_CLEANING, PET_FOOD)
     with make_client(claude) as client:
         job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
         response = client.post("/api/benchmark", json={"audit_id": job["job_id"], "custom_industry": " 宠物食品 "})
@@ -162,28 +190,31 @@ def test_manual_other_industry_finds_leader_and_retailors_strategy(make_client):
         result = client.get(f"/api/audit/{job['job_id']}").json()["result"]
         industry = result["industry"]
         assert industry["selected"] == "Pet Food" and industry["custom_names"] == ["Pet Food"]
-        assert industry["options"][0] == "Pet Food" and industry["option_labels"]["Pet Food"] == "宠物食品"
+        assert industry["options"] == ["Smart Cleaning", "Pet Food"]
+        assert industry["option_labels"]["Pet Food"] == "宠物食品"
         assert result["actions"][-1]["industry_zh"] == "宠物食品"  # strategy re-tailored to the new industry
 
-        # The typed industry stays selectable from the dropdown, and its leader lookup is cached.
-        assert client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "F&B"}).status_code == 200
-        back = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Pet Food"})
-        assert back.json()["leader"] == "Purina"
+        # Switching back to the AI-identified industry works, and the typed industry's leader lookup is cached.
+        back = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Smart Cleaning"})
+        assert back.status_code == 200 and back.json()["leader"] == "Dyson"
+        assert client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Pet Food"}).json()["leader"] == "Purina"
         client.post("/api/benchmark", json={"audit_id": job["job_id"], "custom_industry": "宠物食品"})
+        unknown = client.post("/api/benchmark", json={"audit_id": job["job_id"], "industry": "Automotive"})
+        assert unknown.status_code == 404  # only industries attached to this audit can be selected
     assert claude.count("typed their industry") == 1
 
 
 def test_manual_industry_matching_detected_industry_is_not_duplicated(make_client):
     banking = {"name": "Banking", "name_zh": "银行金融", "leader": "JPMorgan Chase",
                "leader_zh": "摩根大通", "leader_url": "https://www.jpmorganchase.example"}
-    claude = RoutingClaude({"industry": "other", "custom": banking}, {"industry": "other", "custom": banking})
+    claude = RoutingClaude(banking, banking)
     with make_client(claude) as client:
         job = wait_for(client, client.post("/api/audit", json={"url": "www.acmeclean.example"}).json()["job_id"])
-        assert job["result"]["industry"]["custom_names"] == ["Banking"]
-        for text in ("金融科技", "银行业"):  # both resolve to the AI-detected "Banking"
+        assert job["result"]["industry"]["options"] == ["Banking"]
+        for text in ("金融科技", "银行业"):  # both resolve to the AI-identified "Banking"
             assert client.post("/api/benchmark", json={"audit_id": job["job_id"], "custom_industry": text}).status_code == 200
         industry = client.get(f"/api/audit/{job['job_id']}").json()["result"]["industry"]
-    assert industry["custom_names"] == ["Banking"] and industry["options"].count("Banking") == 1
+    assert industry["options"] == ["Banking"] and industry["custom_names"] == []
     assert industry["selected"] == "Banking"
 
 
@@ -194,18 +225,10 @@ def test_manual_industry_requires_claude_and_valid_input(make_client):
         no_ai = client.post("/api/benchmark", json={"audit_id": audit_id, "custom_industry": "银行"})
         assert no_ai.status_code == 400 and "ANTHROPIC_API_KEY" in no_ai.json()["detail"]
         for bad in ({"audit_id": audit_id},
-                    {"audit_id": audit_id, "industry": "F&B", "custom_industry": "银行"},
+                    {"audit_id": audit_id, "industry": "Banking", "custom_industry": "银行"},
                     {"audit_id": audit_id, "custom_industry": "<>"},
                     {"audit_id": audit_id, "custom_industry": "x" * 41}):
             assert client.post("/api/benchmark", json=bad).status_code == 422, bad
-
-
-def test_leader_site_is_its_own_benchmark(make_client):
-    with make_client() as client:
-        job = wait_for(client, client.post("/api/audit", json={"url": "https://www.dyson.com"}).json()["job_id"])
-    assert job["result"]["benchmark"]["is_leader"] is True
-    assert job["result"]["industry"]["method"] == "leader domain"
-
 
 def test_unreachable_site_reports_friendly_error(make_client):
     with make_client() as client:
@@ -217,7 +240,6 @@ def test_unreachable_site_reports_friendly_error(make_client):
 @pytest.mark.parametrize("payload,status", [
     ({"url": "ftp://x.example"}, 400),
     ({"url": "localhost"}, 400),
-    ({"url": "https://ok.example", "industry": "Banking"}, 400),
     ({"url": ""}, 422),
     ({}, 422),
 ])
@@ -231,8 +253,8 @@ def test_unknown_and_malformed_job_ids(make_client):
         assert client.get("/api/audit/" + "0" * 32).status_code == 404
         assert client.get("/api/audit/../../etc").status_code == 404
         assert client.get("/results/not-a-job").status_code == 404
-        assert client.post("/api/benchmark", json={"audit_id": "0" * 32, "industry": "F&B"}).status_code == 404
-        assert client.post("/api/benchmark", json={"audit_id": "bad", "industry": "F&B"}).status_code == 422
+        assert client.post("/api/benchmark", json={"audit_id": "0" * 32, "industry": "Banking"}).status_code == 404
+        assert client.post("/api/benchmark", json={"audit_id": "bad", "industry": "Banking"}).status_code == 422
 
 
 def test_pages_render_with_security_headers(make_client):
@@ -249,10 +271,10 @@ def test_pages_render_with_security_headers(make_client):
         assert client.get("/static/img/rf-geo-logo.png").status_code == 200
         assert 'rel="icon" type="image/svg+xml" href="/static/img/rf-favicon.svg' in index.text
         assert client.get("/static/img/rf-favicon.svg").status_code == 200
-        # Glossary panel: score ranges, every catalogue category with its leader, and term definitions
+        # Glossary panel: score ranges and term definitions; no fixed industry list or detection methods
         assert 'id="glossary"' in index.text and "/static/js/glossary.js" in index.text
-        assert all(label in index.text for label in ("分数区间", "行业类别", "术语释义", "亟需优化", "其他行业（AI识别）"))
-        assert "智能清洁" in index.text and "标杆：戴森（Dyson）" in index.text
+        assert all(label in index.text for label in ("分数区间", "术语释义", "亟需优化", "行业标杆与差距"))
+        assert all(gone not in index.text for gone in ("行业类别", "识别方式", "所属行业与行业标杆", "标杆官网识别", "标杆：戴森"))
         assert 'id="term-citability"' in index.text and 'id="term-authority"' in index.text
         assert "default-src 'self'" in index.headers["content-security-policy"]
         assert index.headers["x-content-type-options"] == "nosniff"
@@ -261,7 +283,7 @@ def test_pages_render_with_security_headers(make_client):
         assert client.get("/healthz").json() == {"ok": True}
         assert "object-src 'none'" in index.headers["content-security-policy"]
         assert "max-age" in index.headers["strict-transport-security"]
-        assert len(client.get("/api/industries").json()) == 7
+        assert client.get("/api/industries").status_code == 404  # the fixed leader list is gone
 
 
 def test_rate_limit(make_client, test_settings):

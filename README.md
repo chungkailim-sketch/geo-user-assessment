@@ -8,7 +8,7 @@ A web app that scores how ready a brand's website is for AI search (ChatGPT, Cla
 AI Readiness = Citability × 0.55 + Authority × 0.45      (0–100)
 ```
 
-**UI language:** Simplified Chinese (zh-CN). Terminology follows AIDSO (aidso.com), e.g. 品牌诊断, 被引用和推荐, 品牌提及, 行业标杆, 逐项GEO优化方案. Internal keys and API values (industry names, platform keys) stay in English, and Chinese display names live in `config/industries.json` (`name_zh`, `leader_zh`).
+**UI language:** Simplified Chinese (zh-CN). Terminology follows AIDSO (aidso.com), e.g. 品牌诊断, 被引用和推荐, 品牌提及, 行业标杆, 逐项GEO优化方案. Internal keys (platform keys, industry names) stay in English; Claude returns Chinese display names for the industry and its leader (`name_zh`, `leader_zh`).
 
 The scoring comes from two modules of the GEO (Generative Engine Optimization) audit skill:
 
@@ -19,27 +19,18 @@ The scoring comes from two modules of the GEO (Generative Engine Optimization) a
 
 Score labels: 85+ Excellent · 70–84 Good · 55–69 Moderate · 40–54 Below average · under 40 Needs attention.
 
-### Industry leaders
+### Industry and benchmark leader
 
-| Industry | Leader |
-|---|---|
-| Automotive | Toyota |
-| Smart Phone | Apple |
-| Consumer Electronics | Sony (benchmarked via sony.net, because sony.com blocks automated access) |
-| Smart Home IoT | Samsung |
-| Smart Cleaning | Dyson |
-| F&B | Starbucks |
-| Culture / Lifestyle | Booking.com |
+There is no fixed list of industries or leaders. For every audit, Claude reads the brand's URL and site content, identifies its industry (as specific as "Smart Cleaning Appliances" or "Retail Banking"), and names the brand AI assistants most often cite and recommend for that industry. The leader's URL is validated and reduced to its homepage. The leader's site is then put through the same GEO audit (crawl, citability, authority), and the two results are compared. If the brand is the leader, the report says so.
 
-The industry is detected automatically and the user can change it on the results page. Leaders are edited in `config/industries.json`.
+**Fallback when the leader blocks audits.** Claude also ranks the next three strongest brands in the industry. If the leader's site can't be audited, the benchmark moves to the next brand in rank order. That covers a bot wall (HTTP 401/403/429 or a challenge page), any other fetch error, or a page with no readable content, such as a site that only renders in the browser. The report then says which leader was replaced. If every named brand fails, Claude is asked once for more brands, up to 7 candidates in all. Only after that is the benchmark shown as unavailable. A blocked site is remembered for 6 hours, so later reports go straight to the next brand. The brand being audited is never used as its own runner-up benchmark.
 
-With `ANTHROPIC_API_KEY` set, Claude classifies every brand (a leader's own domain is still matched directly). If none of the seven categories fits, for example a bank or an airline, Claude names the brand's actual industry and that industry's global leader. The leader's URL is validated and reduced to its homepage, then the leader is audited like any other site. The AI-identified industry is added to the dropdown alongside the seven defaults. Without a key, industries are matched by keywords only.
+If the industry is wrong, the user can pick **其他（手动输入）** in the dropdown and type the industry, such as 银行 or 宠物食品. Claude then finds that industry's leader and the comparison and strategy are re-run. The typed industry stays in the dropdown for that report, and the leader lookup is cached for 7 days.
 
-To compare against an industry that isn't listed, the user picks **其他（手动输入）** in the dropdown and types the industry name, such as 银行 or 宠物食品. Claude maps the input to a catalogue industry when one matches; otherwise it identifies the industry's leader. The typed industry stays in the dropdown for that report, and the leader lookup is cached for 7 days. This requires an API key.
-
+All of this needs `ANTHROPIC_API_KEY`. Without it the report has no industry or benchmark. An audit whose industry can't be identified is not cached, so the next run tries again.
 **核心策略建议 (core strategy recommendation).** Once the industry is known, Claude uses live web search to find the 5–8 media sources that AI assistants cite most for that industry in the brand's main market, such as news outlets, vertical media, review sites, Q&A communities and video platforms. It then writes a PR strategy built around those sources. The report shows the sources with their type and why each matters, followed by the tailored strategy. The result is cached for 24 hours per brand and industry, and is regenerated when the user switches industry. Without a key, or if the call fails, the generic strategy is shown instead.
 
-A **术语表** (glossary) panel opens from the header or from the ⓘ buttons on the results page. It covers the score ranges (overall, passage grades, platform bands), the industry categories, and definitions of the terms used, which follow the GEO skill.
+A **术语表** (glossary) panel opens from the header or from the ⓘ buttons on the results page. It covers the score ranges (overall, passage grades, platform bands) and definitions of the terms used, which follow the GEO skill.
 
 ## How Authority is measured
 
@@ -53,7 +44,6 @@ A **术语表** (glossary) panel opens from the header or from the ⓘ buttons o
 pip install -r requirements.txt
 cp .env.example .env              # add ANTHROPIC_API_KEY for full authority scoring
 uvicorn app.main:app --reload     # http://localhost:8000
-python -m app.cli warm-leaders    # optional: pre-cache all 7 leader audits (~2 min)
 python -m app.cli audit https://www.example.com   # one audit from the terminal
 ```
 
@@ -77,10 +67,9 @@ Results are cached in SQLite (`data/cache.sqlite3`): brand audits for 24 h, lead
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/audit` `{url, industry?, refresh?}` | Start an audit; returns `job_id` and `results_url` |
+| `POST` | `/api/audit` `{url, refresh?}` | Start an audit; returns `job_id` and `results_url` |
 | `GET` | `/api/audit/{job_id}` | Job status with progress and stage, then the full result JSON |
-| `POST` | `/api/benchmark` `{audit_id, industry}` | Re-compare against a different industry leader |
-| `GET` | `/api/industries` | Industry and leader catalogue |
+| `POST` | `/api/benchmark` `{audit_id, industry}` or `{audit_id, custom_industry}` | Re-compare against another industry on the report, or one the user types in |
 
 ## Safety and limits
 

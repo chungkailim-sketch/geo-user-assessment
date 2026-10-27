@@ -1,6 +1,5 @@
 """Command-line helpers.
 
-    python -m app.cli warm-leaders     # pre-compute and cache all industry leader audits
     python -m app.cli audit <url>      # run one audit and print the summary
 """
 
@@ -15,7 +14,6 @@ from app.audit import Auditor
 from app.cache import JsonCache
 from app.config import get_settings
 from app.fetch.safe_fetch import SafeFetcher
-from app.industry import load_industries
 from app.main import build_claude_client
 
 
@@ -32,27 +30,15 @@ async def _with_auditor(action):
             cache.close()
 
 
-async def warm_leaders(auditor: Auditor) -> None:
-    for industry in load_industries():
-        try:
-            result = await auditor.audit(industry.leader_url, refresh=True)
-            logging.info("%-22s %-12s score=%s", industry.name, industry.leader, result["score"])
-        except Exception as exc:
-            logging.error("%s (%s) failed: %s", industry.leader, industry.leader_url, exc)
-
-
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     parser = argparse.ArgumentParser(prog="app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("warm-leaders")
     audit_cmd = sub.add_parser("audit")
     audit_cmd.add_argument("url")
     args = parser.parse_args()
 
-    if args.command == "warm-leaders":
-        asyncio.run(_with_auditor(warm_leaders))
-    else:
+    if args.command == "audit":
         async def run(auditor: Auditor):
             result = await auditor.audit(args.url, refresh=True)
             summary = {k: result[k] for k in ("brand_name", "domain", "score", "label", "industry")}

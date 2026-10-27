@@ -1,6 +1,6 @@
 import pytest
 
-from app.industry import detect_industry, get_industry, industry_for_leader_domain, keyword_scores, load_industries
+from app.industry import Industry, resolve_industry
 from app.scoring.signals import choose_brand_name, extract_signals, registrable_domain
 from tests.conftest import BRAND_HOME
 
@@ -43,46 +43,35 @@ def test_registrable_domain_strips_www():
     assert registrable_domain("https://WWW.Example.com/path") == "example.com"
 
 
-def test_industries_catalogue_matches_requirements():
-    leaders = {i.name: i.leader for i in load_industries()}
-    assert leaders == {
-        "Automotive": "Toyota", "Smart Phone": "Apple", "Consumer Electronics": "Sony",
-        "Smart Home IoT": "Samsung", "Smart Cleaning": "Dyson", "F&B": "Starbucks",
-        "Culture / Lifestyle": "Booking.com",
-    }
+DYSON = {"name": "Smart Cleaning", "name_zh": "智能清洁", "leader": "Dyson",
+         "leader_zh": "戴森", "leader_url": "https://www.dyson.com/"}
 
 
-def test_get_industry_is_case_insensitive():
-    assert get_industry("f&b").leader == "Starbucks"
-    assert get_industry("nope") is None
-    assert get_industry(None) is None
+def test_industry_from_ai_answer():
+    industry = Industry.from_dict(DYSON)
+    assert industry.leader_domain == "dyson.com"
+    assert industry.is_leader("dyson.com") and not industry.is_leader("acme.example")
+    assert industry.to_dict() == {**DYSON, "alternates": []}
 
 
-def test_leader_domain_detection():
-    assert industry_for_leader_domain("toyota.com").name == "Automotive"
-    assert detect_industry("booking.com", "").method == "leader domain"
+def test_industry_falls_back_to_english_names():
+    industry = Industry.from_dict({"name": "Banking", "leader": "JPMorgan Chase", "leader_url": "https://www.jpmorganchase.com"})
+    assert industry.name_zh == "Banking" and industry.leader_zh == "JPMorgan Chase"
 
 
-def test_keyword_detection():
-    text = "Robot vacuum and cordless vacuum cleaning. Our vacuum cleaner has strong suction."
-    detection = detect_industry("acmeclean.example", text)
-    assert detection.industry == "Smart Cleaning"
-    assert detection.method == "keywords"
+def test_resolve_industry_among_audit_candidates():
+    typed = {**DYSON, "name": "Pet Food", "leader": "Purina", "leader_url": "https://www.purina.com"}
+    assert resolve_industry("smart cleaning", DYSON, typed).leader == "Dyson"
+    assert resolve_industry("Pet Food", DYSON, None, typed).leader == "Purina"
+    assert resolve_industry("Automotive", DYSON) is None  # no fixed catalogue any more
+    assert resolve_industry(None, DYSON) is None
 
-
-def test_keyword_detection_ambiguous_and_none():
-    assert detect_industry("x.example", "nothing relevant here") is None
-    ambiguous = detect_industry("x.example", "coffee travel")
-    assert ambiguous.method == "ambiguous"
-
-
-def test_keyword_scores_respect_word_boundaries():
-    scores = keyword_scores("scar carpet")  # 'car' must not match inside words
-    assert scores["Automotive"] == 0
-
-
-def test_leader_aliases():
-    sony = get_industry("Consumer Electronics")
-    assert sony.leader_domain == "sony.net"
-    assert sony.is_leader("sony.com") and sony.is_leader("sony.net")
-    assert industry_for_leader_domain("dyson.com.sg").leader == "Dyson"
+def test_candidates_rank_leader_first_and_skip_duplicate_domains():
+    industry = Industry.from_dict({**DYSON, "alternates": [
+        {"leader": "Dyson CN", "leader_zh": "戴森", "leader_url": "https://www.dyson.com/"},
+        {"leader": "Ecovacs", "leader_zh": "科沃斯", "leader_url": "https://www.ecovacs.com/"},
+    ]})
+    assert [c["leader"] for c in industry.candidates()] == ["Dyson", "Ecovacs"]
+    stand_in = industry.with_leader(industry.candidates()[1])
+    assert (stand_in.leader_zh, stand_in.leader_domain, stand_in.name) == ("科沃斯", "ecovacs.com", "Smart Cleaning")
+    assert industry.leader == "Dyson"  # the original is unchanged

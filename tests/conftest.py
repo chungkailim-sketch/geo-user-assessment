@@ -87,6 +87,12 @@ def site_handler(request: httpx.Request) -> httpx.Response:
         if path == "/":
             return httpx.Response(200, text=LEADER_HOME, headers=html)
         return httpx.Response(404, text="missing", headers=html)
+    if host == "www.jsonly.example":  # a client-rendered site: no readable content without a browser
+        if path == "/":
+            return httpx.Response(200, text="<html><head><title>Shell</title></head><body><div id=app></div></body></html>", headers=html)
+        return httpx.Response(404, text="missing", headers=html)
+    if host == "www.botwall.example":  # a leader site behind a bot wall
+        return httpx.Response(403, text="Access denied", headers=html)
     return httpx.Response(404, text="unknown host")
 
 
