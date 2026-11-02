@@ -62,7 +62,7 @@ The executive summary, quick wins and 30-day plan are written by Claude when a k
 
 **Fonts.** The Docker image installs `fonts-wqy-microhei`, which is embedded as a subset so Chinese renders in every PDF viewer. Locally, Microsoft YaHei is used on Windows. `PDF_FONT_PATH` overrides both.
 
-**Email** is sent over SMTP and is switched off until `SMTP_HOST` and `SMTP_FROM` are set. Until then, the call to action says the feature is coming soon.
+**Email** is sent over SMTP and is switched off until `SMTP_HOST` and `SMTP_FROM` are set. Until then, the send button is disabled.
 
 **Limits:**
 - 3 requests per day per visitor IP, and at most 3 sends per report.

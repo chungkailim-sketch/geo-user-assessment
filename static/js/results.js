@@ -450,10 +450,7 @@
   fetch("/api/report/config", { cache: "no-store" })
     .then((r) => (r.ok ? r.json() : null))
     .then((config) => {
-      if (config && !config.enabled) {
-        $("report-submit").disabled = true;
-        reportStatus("邮件发送功能即将开通，敬请期待。");
-      }
+      if (config && !config.enabled) $("report-submit").disabled = true;
     })
     .catch(() => {});
 
