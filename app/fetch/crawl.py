@@ -35,10 +35,6 @@ class CrawlResult:
     pages: list[FetchResult] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     robots_found: bool = False
-    robots_text: str | None = None
-    sitemap_found: bool = False
-    sitemap_urls: int = 0
-    sitemap_lastmod: bool = False
 
 
 def _same_site(url: str, base_host: str) -> bool:
@@ -92,16 +88,12 @@ class Crawler:
     def __init__(self, fetcher: SafeFetcher, max_pages: int):
         self.fetcher = fetcher
         self.max_pages = max_pages
-        self.robots_text: str | None = None
-        self.sitemap_lastmod = False
-        self.sitemap_found = False
 
     async def _robots(self, origin: str) -> RobotFileParser | None:
         try:
             result = await self.fetcher.fetch(urljoin(origin, "/robots.txt"), accept=TEXT_TYPES)
         except (FetchError, UnsafeURLError):
             return None
-        self.robots_text = result.text[:200_000]
         parser = RobotFileParser()
         parser.parse(result.text.splitlines())
         return parser
@@ -111,8 +103,6 @@ class Crawler:
             result = await self.fetcher.fetch(urljoin(origin, "/sitemap.xml"), accept=TEXT_TYPES)
         except (FetchError, UnsafeURLError):
             return []
-        self.sitemap_found = "<loc>" in result.text.lower()
-        self.sitemap_lastmod = "<lastmod>" in result.text.lower()
         pages, children = parse_sitemap(result.text)
         for child in children[:2]:
             try:
@@ -134,11 +124,7 @@ class Crawler:
         result.robots_found = robots is not None
 
         candidates = extract_links(homepage.text, homepage.url)
-        sitemap = await self._sitemap_urls(origin)
-        candidates += sitemap
-        result.robots_text = self.robots_text
-        result.sitemap_found, result.sitemap_urls = self.sitemap_found, len(sitemap)
-        result.sitemap_lastmod = self.sitemap_lastmod
+        candidates += await self._sitemap_urls(origin)
         picks = pick_candidates(candidates, parsed.hostname or "", self.max_pages * 3)
 
         for candidate in picks:

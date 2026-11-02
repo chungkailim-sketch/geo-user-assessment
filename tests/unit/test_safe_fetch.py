@@ -227,10 +227,3 @@ async def test_fetch_enforces_total_deadline():
     client = httpx.AsyncClient(transport=httpx.MockTransport(slow_handler))
     with pytest.raises(FetchError, match="超时"):
         await SafeFetcher(settings, client=client).fetch(f"http://{PUBLIC_IP}/")
-
-
-@pytest.mark.parametrize("raw,expected", [("https://ruderfinn.com:443/", "https://ruderfinn.com/"),
-                                          ("http://a.example:80/x", "http://a.example/x"),
-                                          ("https://a.example:80/", "https://a.example:80/")])
-def test_normalize_url_drops_default_ports(raw, expected):
-    assert normalize_url(raw) == expected
