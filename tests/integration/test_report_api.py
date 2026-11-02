@@ -141,29 +141,66 @@ class FakeSMTP:
     def login(self, user, password):
         self.calls.append(("login", user))
 
-    def send_message(self, message, to_addrs=None):
-        self.calls.append(("send", to_addrs))
+    def send_message(self, message, from_addr=None, to_addrs=None):
+        self.calls.append(("send", from_addr, to_addrs))
+        return {}
 
 
 async def test_smtp_delivery_uses_starttls_login_and_bcc(email_settings, monkeypatch):
     monkeypatch.setattr(smtplib, "SMTP", FakeSMTP)
-    settings = email_settings.model_copy(update={"smtp_username": "u", "smtp_password": "p"})
+    settings = email_settings.model_copy(update={"smtp_username": " u ", "smtp_password": "p", "smtp_from": " geo@rf.example "})
     message = mailer.build_message(settings, "ck@brand.example", "Acme\r\nBcc: x@evil.example", "https://a.example", 61.2, b"%PDF")
     await mailer.send_report(settings, message)
     smtp = FakeSMTP.instances[-1]
-    assert smtp.calls == ["starttls", ("login", "u"), ("send", ["ck@brand.example", "team@rf.example"])]
+    assert smtp.calls == ["starttls", ("login", "u"), ("send", "geo@rf.example", ["ck@brand.example", "team@rf.example"])]
     assert "\n" not in message["Subject"] and message["Bcc"] is None
 
 
-async def test_smtp_refused_recipient_message(email_settings, monkeypatch):
+def refusing(code: int, reply: bytes):
     class Refusing(FakeSMTP):
-        def send_message(self, message, to_addrs=None):
-            raise smtplib.SMTPRecipientsRefused({"x": (550, b"no")})
+        def send_message(self, message, from_addr=None, to_addrs=None):
+            raise smtplib.SMTPRecipientsRefused({to_addrs[0]: (code, reply)})
+    return Refusing
 
-    monkeypatch.setattr(smtplib, "SMTP", Refusing)
+
+@pytest.mark.parametrize("code,reply,username,expected", [
+    (550, b"5.1.1 User unknown", "u", "请检查邮箱是否正确"),
+    (550, b"5.7.1 Unable to relay", "", "发件账号未登录验证"),
+    (550, b"5.7.64 TenantAttribution; Relay Access Denied", "u", "发件服务器配置或权限问题"),
+    (451, b"4.3.0 Try again later", "u", "暂时无法投递"),
+])
+async def test_smtp_refusals_are_explained_and_logged(email_settings, monkeypatch, caplog, code, reply, username, expected):
+    monkeypatch.setattr(smtplib, "SMTP", refusing(code, reply))
+    settings = email_settings.model_copy(update={"smtp_username": username})
+    message = mailer.build_message(settings, "visitor@brand.example", "Acme", "https://a.example", 50, b"%PDF")
+    with pytest.raises(mailer.EmailError, match=expected):
+        await mailer.send_report(settings, message)
+    assert reply.decode() in caplog.text and "***@brand.example" in caplog.text and "visitor@" not in caplog.text
+
+
+@pytest.mark.parametrize("exc,expected", [
+    (smtplib.SMTPSenderRefused(553, b"5.7.60 not allowed to send as", "geo@rf.example"), "发件地址"),
+    (smtplib.SMTPAuthenticationError(535, b"5.7.139 Authentication unsuccessful"), "登录验证失败"),
+    (OSError("connection refused"), "稍后重试"),
+])
+async def test_smtp_sender_auth_and_network_errors(email_settings, monkeypatch, exc, expected):
+    class Failing(FakeSMTP):
+        def send_message(self, message, from_addr=None, to_addrs=None):
+            raise exc
+    monkeypatch.setattr(smtplib, "SMTP", Failing)
     message = mailer.build_message(email_settings, "a@b.example", "Acme", "https://a.example", 50, b"%PDF")
-    with pytest.raises(mailer.EmailError, match="拒绝"):
+    with pytest.raises(mailer.EmailError, match=expected):
         await mailer.send_report(email_settings, message)
+
+
+async def test_port_465_uses_implicit_tls_and_partial_refusal_is_logged(email_settings, monkeypatch, caplog):
+    class PartlyRefusing(FakeSMTP):
+        def send_message(self, message, from_addr=None, to_addrs=None):
+            return {to_addrs[-1]: (550, b"5.1.1 no such user")}
+    monkeypatch.setattr(smtplib, "SMTP_SSL", PartlyRefusing)
+    settings = email_settings.model_copy(update={"smtp_port": 465, "smtp_security": "starttls"})
+    await mailer.send_report(settings, mailer.build_message(settings, "a@b.example", "Acme", "https://a.example", 50, b"%PDF"))
+    assert "starttls" not in FakeSMTP.instances[-1].calls and "refused some recipients" in caplog.text
 
 
 @pytest.mark.parametrize("address,ok", [("a@b.example", True), ("a.b+c@sub.b.example", True), ("a@b", False),
@@ -183,3 +220,15 @@ def test_report_requests_are_capped_per_visitor_per_day(email_settings, mock_tra
         fourth = client.post("/api/report", json={"audit_id": audit_id, "email": "a@b.example"})
     assert codes[:3] == [200, 200, 200] and codes[3] == 429
     assert fourth.status_code == 429 and "每天3次" in fourth.json()["detail"]
+
+
+def test_report_with_failed_ai_analysis_is_not_cached(email_settings, mock_transport, sent):
+    claude = RoutingClaude(SMART_CLEANING)
+    claude.routes.append(("senior GEO (Generative Engine Optimization) consultant", "no json here"))
+    with TestClient(create_app(email_settings, claude_client=claude, transport=mock_transport)) as client:
+        audit_id = run_audit(client)
+        for _ in range(2):
+            job = client.post("/api/report", json={"audit_id": audit_id, "email": "a@b.example"}).json()["job_id"]
+            assert wait_report(client, job)["status"] == "sent"
+        assert client.app.state.reports.cache.get(f"{report_jobs.FULL_KEY}{audit_id}", 3600) is None
+    assert claude.count("senior GEO") == 2  # retried, not served from a template-text cache

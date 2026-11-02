@@ -96,7 +96,10 @@ def normalize_url(raw: str) -> str:
     if port not in ALLOWED_PORTS:
         raise UnsafeURLError("仅支持标准网页端口（80/443）。")
     path = parsed.path or "/"
-    return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, "", parsed.query, ""))
+    netloc = parsed.netloc.lower()
+    if (parsed.scheme.lower(), port) in (("https", 443), ("http", 80)):
+        netloc = netloc.rsplit(":", 1)[0]  # "https://site:443/" → "https://site/" (same URL, cleaner display)
+    return urlunparse((parsed.scheme.lower(), netloc, path, "", parsed.query, ""))
 
 
 def site_root(url: str) -> str:

@@ -108,11 +108,14 @@ async def claude_analysis(client: Any, model: str, brand: str, url: str, data: d
         brand=sanitize_brand(brand), url=url, data=json.dumps(data, ensure_ascii=False)[:9000],
         excerpts=excerpts[:9000].replace("</page_excerpts>", ""),
     )
+    stop_reason = None
     try:
-        response = await client.messages.create(model=model, max_tokens=3000, messages=[{"role": "user", "content": prompt}])
+        # Chinese narrative + plan runs to several thousand tokens; a cut-off reply has no closing brace.
+        response = await client.messages.create(model=model, max_tokens=8000, messages=[{"role": "user", "content": prompt}])
+        stop_reason = getattr(response, "stop_reason", None)
         return ClaudeAnalysis.model_validate(extract_json(_final_text(response.content)))
     except (ValueError, ValidationError) as exc:
-        log.warning("Claude full-report analysis invalid for %s: %s", url, exc)
+        log.warning("Claude full-report analysis invalid for %s (stop_reason=%s): %s", url, stop_reason, exc)
     except Exception as exc:  # the report falls back to heuristics and template text
         log.warning("Claude full-report analysis failed for %s: %s", url, type(exc).__name__)
     return None

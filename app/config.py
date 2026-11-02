@@ -65,7 +65,7 @@ class Settings(BaseSettings):
 
     @property
     def email_enabled(self) -> bool:
-        return bool(self.smtp_host and self.smtp_from)
+        return bool(self.smtp_host.strip() and self.smtp_from.strip())
 
 
 @lru_cache

@@ -90,7 +90,8 @@ class ReportManager:
             if quick is None:
                 raise ReportRequestError("诊断报告已过期，请重新诊断后再试。")
             report = await self.full_auditor.run(quick, progress)
-            self.cache.set(key, report)
+            if report["ai_written"] or self.full_auditor.claude is None:  # retry a failed AI analysis next time
+                self.cache.set(key, report)
             return report
 
     async def _run(self, job_id: str, audit_id: str, email: str) -> None:
