@@ -4,6 +4,7 @@ import time
 import pytest
 
 from app.cache import JsonCache
+from app.config import Settings
 from app.jobs import FINISHED_JOB_TTL_SECONDS, JobManager, JobState, QueueFullError
 
 pytestmark = pytest.mark.unit
@@ -12,6 +13,7 @@ pytestmark = pytest.mark.unit
 class SlowAuditor:
     def __init__(self):
         self.release = asyncio.Event()
+        self.settings = Settings()
 
     async def audit(self, url, progress=None, refresh=False):
         await progress("Loaded cached result", 80)

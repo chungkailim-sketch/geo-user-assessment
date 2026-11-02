@@ -3,7 +3,6 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import create_app
 from tests.conftest import AUTHORITY_PAYLOAD, FakeClaude, claude_text_response  # noqa: F401
 
 pytestmark = pytest.mark.integration
@@ -18,14 +17,6 @@ def wait_for(client: TestClient, job_id: str, timeout: float = 15.0) -> dict:
         time.sleep(0.05)
     raise AssertionError("audit did not finish")
 
-
-@pytest.fixture
-def make_client(test_settings, mock_transport):
-    def factory(claude=None, settings=None):
-        app = create_app(settings or test_settings, claude_client=claude, transport=mock_transport)
-        return TestClient(app)
-
-    return factory
 
 
 SMART_CLEANING = {"name": "Smart Cleaning", "name_zh": "智能清洁", "leader": "Dyson",

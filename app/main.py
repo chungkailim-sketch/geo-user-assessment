@@ -19,7 +19,7 @@ from app.audit import Auditor
 from app.cache import JsonCache
 from app.config import ROOT_DIR, Settings, get_settings
 from app.fetch.safe_fetch import SafeFetcher, UnsafeURLError, build_page_client, normalize_url
-from app.jobs import CustomIndustryError, JobManager, QueueFullError
+from app.jobs import CustomIndustryError, JobManager, QueueFullError, UrlQuotaError
 from app.models import AuditRequest, JobStatus
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -99,6 +99,10 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
     @app.exception_handler(RateLimitExceeded)
     async def rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
         return JSONResponse({"detail": "请求过于频繁，请一分钟后再试。"}, status_code=429)
+
+    @app.exception_handler(UrlQuotaError)
+    async def url_quota(request: Request, exc: UrlQuotaError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=429)
 
     @app.exception_handler(QueueFullError)
     async def queue_full(request: Request, exc: QueueFullError) -> JSONResponse:

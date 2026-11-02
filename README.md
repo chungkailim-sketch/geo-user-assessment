@@ -78,7 +78,7 @@ Results are cached in SQLite (`data/cache.sqlite3`): brand audits for 24 h, lead
 - **Bot protection is respected, not bypassed.** Sites that answer with a bot challenge (403, 429, a 202 interstitial, or captcha pages) are reported as "blocks automated analysis" instead of being scored as empty.
 - Strict CSP (no inline scripts, no eval). Chart.js is loaded from cdnjs with SRI. All crawled and model text is rendered with `textContent`.
 - **DNS-rebinding safe.** The validated IP is pinned at connect time through a custom httpcore network backend, and env proxies are ignored.
-- **Cost and abuse limits.** 5 audits per minute and 10 benchmark switches per minute per IP. At most 3 audits run at once and 20 can be queued (beyond that the API returns 503). Each page has a 30 s deadline and each audit 4 min. "Re-run fresh audit" is honoured at most hourly per domain.
+- **Cost and abuse limits.** Each visitor (client IP) can start at most 5 audits per minute. Each site can be freshly audited at most 3 times per day across all visitors. Opening a result that is still cached doesn't count, but "重新诊断" does. The daily cap resets at midnight UTC+8. Benchmark switches are limited to 10 per minute per IP. At most 3 audits run at once and 20 can be queued (beyond that the API returns 503). Each page has a 30 s deadline and each audit 4 min. "Re-run fresh audit" is honoured at most hourly per domain.
 - **Trustworthy baselines.** Every audit starts from the site's homepage, so one domain has one canonical result. Results built while Wikipedia or Claude was unavailable are flagged and never cached.
 - Behind a reverse proxy, set `FORWARDED_ALLOW_IPS=<proxy ip>` so rate limiting sees real client IPs.
 

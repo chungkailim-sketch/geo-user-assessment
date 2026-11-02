@@ -352,8 +352,10 @@
         body: JSON.stringify({ url: report.url, refresh: true }), // the industry is re-identified by AI
       });
       const data = await response.json();
-      if (response.ok) window.location.assign(data.results_url);
-      else $("rerun").disabled = false;
+      if (response.ok) return window.location.assign(data.results_url);
+      $("rerun").disabled = false;
+      $("rerun-error").textContent = typeof data.detail === "string" ? data.detail : "暂时无法重新诊断，请稍后再试。";
+      $("rerun-error").hidden = false;
     } catch (err) {
       $("rerun").disabled = false;
     }

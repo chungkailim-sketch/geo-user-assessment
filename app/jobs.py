@@ -5,11 +5,12 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 
-from app.audit import Auditor
+from app.audit import SITE_KEY, Auditor
 from app.benchmark import compare
 from app.cache import JsonCache
-from app.fetch.safe_fetch import FetchError, UnsafeURLError
+from app.fetch.safe_fetch import FetchError, UnsafeURLError, site_root
 from app.industry import Industry, resolve_industry
 from app.models import JobStatus
 from app.scoring.claude_strategy import leader_for_industry, media_strategy, more_leaders
@@ -27,11 +28,17 @@ MAX_MANUAL_INDUSTRIES = 3
 MAX_LEADER_CANDIDATES = 7  # leader + runner-ups (+ extra ones from Claude) tried before giving up
 BLOCKED_KEY = "leader-blocked:v1:"
 BLOCKED_TTL_SECONDS = 6 * 3600
+URL_RUNS_KEY = "url-runs:v1:"
+QUOTA_TZ = timezone(timedelta(hours=8))  # daily caps reset at midnight Beijing/Singapore time
 GENERIC_ERROR = "诊断过程中出现异常，请稍后重试。"
 
 
 class QueueFullError(RuntimeError):
     """Raised when too many audits are already queued or running."""
+
+
+class UrlQuotaError(RuntimeError):
+    """The site has been audited the maximum number of times today."""
 
 
 class CustomIndustryError(ValueError):
@@ -100,10 +107,24 @@ class JobManager:
     def active_count(self) -> int:
         return sum(1 for job in self.jobs.values() if job.status in ("queued", "running"))
 
+    def claim_url_run(self, url: str, refresh: bool = False) -> None:
+        """Count a fresh audit of this site against its daily cap. Opening a result that is still cached
+        is not a run; a fresh run (cache miss or 重新诊断) is, whoever starts it."""
+        settings = self.auditor.settings
+        domain = registrable_domain(site_root(url))
+        if not refresh and self.cache.get(f"{SITE_KEY}{domain}", settings.user_cache_ttl_seconds) is not None:
+            return
+        key = f"{URL_RUNS_KEY}{domain}:{datetime.now(QUOTA_TZ).date().isoformat()}"
+        runs = (self.cache.get(key, 2 * 86400) or {}).get("count", 0)
+        if runs >= settings.url_daily_runs:
+            raise UrlQuotaError(f"该网址今日诊断次数已达上限（每天{settings.url_daily_runs}次），请明天再试。")
+        self.cache.set(key, {"count": runs + 1}, keep_created=True)
+
     def start(self, url: str, refresh: bool = False) -> str:
         self._sweep()
         if self.active_count() >= self.max_active:
             raise QueueFullError("当前诊断请求较多，请一分钟后再试。")
+        self.claim_url_run(url, refresh)
         job_id = uuid.uuid4().hex
         self.jobs[job_id] = JobState(job_id=job_id)
         task = asyncio.create_task(self._run(job_id, url, refresh))

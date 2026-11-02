@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     api_user_agent: str = "AIReadinessScore/1.0 (https://github.com/geo-user-assessment; ai-readiness@example.com)"
 
     rate_limit: str = "5/minute"
+    url_daily_runs: int = 3  # fresh audits of one site per day across all visitors (cached views are free)
     benchmark_rate_limit: str = "10/minute"
     max_concurrent_audits: int = 3
     max_queued_jobs: int = 20
