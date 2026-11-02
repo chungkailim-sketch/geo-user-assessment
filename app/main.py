@@ -20,7 +20,10 @@ from app.cache import JsonCache
 from app.config import ROOT_DIR, Settings, get_settings
 from app.fetch.safe_fetch import SafeFetcher, UnsafeURLError, build_page_client, normalize_url
 from app.jobs import CustomIndustryError, JobManager, QueueFullError
+from app.fullaudit.analysis import FullAuditor
 from app.models import AuditRequest, JobStatus
+from app.report.jobs import ReportManager, ReportRequestError
+from app.report.mailer import valid_email
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
@@ -87,6 +90,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         claude = claude_client if claude_client is not None else build_claude_client(settings)
         auditor = Auditor(settings, cache, fetcher, api_client, claude)
         app.state.jobs = JobManager(auditor=auditor, cache=cache, max_active=settings.max_queued_jobs)
+        app.state.reports = ReportManager(settings, cache, FullAuditor(settings, fetcher, claude))
         yield
         await fetcher.aclose()
         await api_client.aclose()
@@ -98,6 +102,8 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
 
     @app.exception_handler(RateLimitExceeded)
     async def rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        if request.url.path == "/api/report":  # daily per-visitor cap on emailed reports
+            return JSONResponse({"detail": "今日报告发送次数已达上限（每天3次），请明天再试。"}, status_code=429)
         return JSONResponse({"detail": "请求过于频繁，请一分钟后再试。"}, status_code=429)
 
     @app.exception_handler(QueueFullError)
@@ -176,6 +182,39 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         if benchmark is None:
             raise HTTPException(status_code=404, detail="未找到该诊断报告或行业。")
         return benchmark
+
+    class ReportRequest(BaseModel):
+        audit_id: str = Field(pattern=JOB_ID_PATTERN.pattern)
+        email: str = Field(min_length=3, max_length=254)
+
+        @field_validator("email")
+        @classmethod
+        def check_email(cls, value: str) -> str:
+            value = value.strip()
+            if not valid_email(value):
+                raise ValueError("请输入有效的邮箱地址。")
+            return value
+
+    @app.get("/api/report/config")
+    async def report_config(request: Request):
+        return {"enabled": settings.email_enabled}
+
+    @app.post("/api/report")
+    @limiter.limit(settings.report_rate_limit if settings.rate_limit != "off" else "1000/second")
+    async def send_full_report(request: Request, body: ReportRequest):
+        try:
+            job_id = request.app.state.reports.start(body.audit_id, body.email)
+        except ReportRequestError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"job_id": job_id}
+
+    @app.get("/api/report/{job_id}")
+    async def report_status(request: Request, job_id: str):
+        _check_job_id(job_id)
+        job = request.app.state.reports.status(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="未找到该报告任务。")
+        return {"status": job.status, "stage": job.stage, "progress": job.progress, "error": job.error}
 
     return app
 

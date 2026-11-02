@@ -41,9 +41,31 @@ class Settings(BaseSettings):
     # Test-only escape hatch so integration tests can audit a local fixture site.
     allow_private_hosts: bool = False
 
+    # Full PDF report, emailed on request from the results page.
+    full_audit_max_pages: int = 15
+    report_rate_limit: str = "3/day"  # per visitor IP
+    report_max_sends_per_audit: int = 3
+    report_deadline_seconds: float = 420.0
+    pdf_font_path: str = ""  # optional CJK TrueType font; otherwise a bundled/system font is used
+    # SMTP delivery. The report feature is switched off until SMTP_HOST and SMTP_FROM are set.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_security: str = "starttls"  # starttls (port 587) | ssl (port 465) | none
+    smtp_from: str = ""  # sender address, e.g. geo@yourdomain.com
+    smtp_from_name: str = "罗德出海GEO准备度评估"
+    smtp_reply_to: str = ""
+    report_bcc: str = ""  # optional internal copy of every report sent (comma-separated)
+    smtp_timeout_seconds: float = 30.0
+
     @property
     def claude_enabled(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    @property
+    def email_enabled(self) -> bool:
+        return bool(self.smtp_host and self.smtp_from)
 
 
 @lru_cache
