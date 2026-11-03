@@ -29,6 +29,7 @@ from app.scoring.wikipedia import WikipediaChecker
 log = logging.getLogger(__name__)
 
 Progress = Callable[[str, int], Awaitable[None]]
+CACHED_STAGE = "已加载近期诊断结果"  # progress stage reported when a saved result is reused
 SITE_KEY = "site:v8:"  # bump when result wording/shape changes so stale cache entries are ignored
 DEGRADED_NOTE = "部分数据源暂时不可用，本次诊断结果可能不完整（未写入缓存）。"
 
@@ -83,7 +84,7 @@ class Auditor:
                        else self.settings.leader_cache_ttl_seconds if as_leader
                        else self.settings.user_cache_ttl_seconds)
                 if hit := self.cache.get(f"{SITE_KEY}{domain}", ttl):
-                    await progress("已加载近期诊断结果", 80)
+                    await progress(CACHED_STAGE, 80)
                     return hit
                 async with self._slots:
                     async with asyncio.timeout(self.settings.audit_deadline_seconds):

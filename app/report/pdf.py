@@ -251,10 +251,13 @@ class ReportBuilder:
         if not b or b.get("status") != "ok" or not b.get("leader_scores"):
             return
         leader = b.get("leader_zh") or b["leader"]
-        self.section(f"行业标杆对比：{leader}")
+        self.section(f"行业对比：{leader}" if b.get("brand_is_leader") else f"行业标杆对比：{leader}")
         if b.get("is_leader"):
             self.story.append(self.p(f"{t(self.r['brand_name'])}即为{t(b.get('industry_zh') or b['industry'])}行业的标杆品牌。"))
             return
+        if b.get("brand_is_leader"):
+            self.story.append(self.p(f"{t(self.r['brand_name'])}已是{t(b.get('industry_zh') or b['industry'])}行业的标杆品牌。"
+                                     f"以下与行业内排名其后的领先品牌{t(leader)}对比，查看各项指标的差距。"))
         ls = b["leader_scores"]
         brand = self.r
         rows = [("AI搜索就绪度", brand["readiness_score"], ls["score"]),

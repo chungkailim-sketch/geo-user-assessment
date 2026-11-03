@@ -86,6 +86,7 @@ pip install -r requirements.txt
 cp .env.example .env              # add ANTHROPIC_API_KEY for full authority scoring
 uvicorn app.main:app --reload     # http://localhost:8000
 python -m app.cli audit https://www.example.com   # one audit from the terminal
+python -m app.cli history --limit 20               # recent audits and reports
 ```
 
 Or with Docker: `docker build -t ai-readiness . && docker run -p 8000:8000 --env-file .env ai-readiness`
@@ -104,9 +105,19 @@ The repo includes `railway.json`, which builds the Dockerfile and health-checks 
 | `SMTP_FROM`, `SMTP_FROM_NAME`, `SMTP_REPLY_TO` | Sender address and name, and an optional reply-to address |
 | `REPORT_BCC` | Optional. Internal addresses that get a copy of every report sent (comma-separated). |
 
-The SQLite cache lives in the container, so it resets on every deploy. That's harmless, because leader audits are re-scored on first use.
+Saved results and run history live in `/app/data/cache.sqlite3`. Mount a Railway volume at `/app/data` so they survive deploys, and set `RAILWAY_RUN_UID=0` so the app can write to it. Without a volume, every deploy starts with an empty cache.
 
-Results are cached in SQLite (`data/cache.sqlite3`): brand audits for 24 h, leader audits for 7 days. Use "Re-run fresh audit" on the results page to bypass the cache.
+Results are saved in SQLite (`data/cache.sqlite3`) so repeat work is instant:
+
+| Saved result | Reused for | Notes |
+|---|---|---|
+| Quick audit of a site | 24 h (`USER_CACHE_TTL_SECONDS`) | Any visitor entering the same site gets it at once. 重新诊断 bypasses it. |
+| Leader audits | 7 days (`LEADER_CACHE_TTL_SECONDS`) | |
+| Full-report analysis of a site | 24 h (`FULL_REPORT_CACHE_TTL_SECONDS`) | Shared by every report on that site while its quick audit is unchanged. Industry and benchmark still come from each visitor's own report. |
+
+**Pre-built reports.** When a quick audit finishes and email is configured, the full-report analysis starts in the background, one at a time. Usually the PDF is ready, or nearly ready, by the time the visitor clicks the email button. This costs one crawl and one Claude call per audit, even when nobody asks for the PDF. Set `REPORT_PREWARM=false` to build reports only on request.
+
+**Run history.** Every audit, pre-build and report send is recorded in a `runs` table in the same file: site, brand, score, seconds taken, whether a saved result was reused, and status. Visitor IPs and email addresses are not stored. List them with `python -m app.cli history`.
 
 ## API
 

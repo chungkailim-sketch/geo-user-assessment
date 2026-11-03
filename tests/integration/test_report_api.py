@@ -121,7 +121,7 @@ def test_report_without_claude_uses_heuristics_and_smtp_errors_are_reported(emai
         audit_id = run_audit(client)
         job = client.post("/api/report", json={"audit_id": audit_id, "email": "a@b.example"}).json()["job_id"]
         result = wait_report(client, job)
-        report = client.app.state.reports.cache.get(f"{report_jobs.FULL_KEY}{audit_id}", 3600)
+        report = client.app.state.reports.cache.get(f"{report_jobs.FULL_KEY}acmeclean.example", 3600)
     assert result["status"] == "error" and result["error"] == "邮件发送失败，请稍后重试。"
     assert report["ai_written"] is False and report["eeat"]["source"] == "heuristic"
     assert len(report["plan"]) == 4 and report["executive_summary"].startswith("Acme Clean")
@@ -242,8 +242,8 @@ def test_report_with_failed_ai_analysis_is_not_cached(email_settings, mock_trans
         for _ in range(2):
             job = client.post("/api/report", json={"audit_id": audit_id, "email": "a@b.example"}).json()["job_id"]
             assert wait_report(client, job)["status"] == "sent"
-        assert client.app.state.reports.cache.get(f"{report_jobs.FULL_KEY}{audit_id}", 3600) is None
-    assert claude.count("senior GEO") == 2  # retried, not served from a template-text cache
+        assert client.app.state.reports.cache.get(f"{report_jobs.FULL_KEY}acmeclean.example", 3600) is None
+    assert claude.count("senior GEO") == 3  # background pre-build + each send retried; no template-text cache
 
 
 @pytest.mark.parametrize("brand,expected", [

@@ -22,6 +22,7 @@ from app.fetch.safe_fetch import SafeFetcher, UnsafeURLError, build_page_client,
 from app.fullaudit.analysis import FullAuditor
 from app.jobs import CustomIndustryError, JobManager, QueueFullError, UrlQuotaError
 from app.models import AuditRequest, JobStatus
+from app.records import RunLog
 from app.report.jobs import ReportManager, ReportRequestError
 from app.report.mailer import valid_email
 
@@ -82,6 +83,7 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         cache = JsonCache(settings.cache_path)
+        runs = RunLog(settings.cache_path)
         cache.purge_older_than(settings.leader_cache_ttl_seconds)
         fetcher = SafeFetcher(settings, client=build_page_client(settings, transport))
         api_client = httpx.AsyncClient(
@@ -89,12 +91,15 @@ def create_app(settings: Settings | None = None, claude_client=None, transport=N
         )
         claude = claude_client if claude_client is not None else build_claude_client(settings)
         auditor = Auditor(settings, cache, fetcher, api_client, claude)
-        app.state.jobs = JobManager(auditor=auditor, cache=cache, max_active=settings.max_queued_jobs)
-        app.state.reports = ReportManager(settings, cache, FullAuditor(settings, fetcher, claude))
+        app.state.reports = ReportManager(settings, cache, FullAuditor(settings, fetcher, claude), runs=runs)
+        app.state.jobs = JobManager(auditor=auditor, cache=cache, max_active=settings.max_queued_jobs, runs=runs,
+                                    on_audit_done=app.state.reports.prewarm)
+        app.state.runs = runs
         yield
         await fetcher.aclose()
         await api_client.aclose()
         cache.close()
+        runs.close()
 
     app = FastAPI(title="罗德出海GEO准备度评估", lifespan=lifespan, docs_url=None, redoc_url=None)
     app.state.limiter = limiter

@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     report_rate_limit: str = "3/day"  # per visitor IP
     report_max_sends_per_audit: int = 3
     report_deadline_seconds: float = 420.0
+    report_prewarm: bool = True  # pre-build the full report in the background after each quick audit
+    full_report_cache_ttl_seconds: int = 24 * 3600  # reuse a site's full analysis for this long
     pdf_font_path: str = ""  # optional CJK TrueType font; otherwise a bundled/system font is used
     # SMTP delivery. The report feature is switched off until SMTP_HOST and SMTP_FROM are set.
     smtp_host: str = ""

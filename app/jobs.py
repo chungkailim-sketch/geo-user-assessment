@@ -4,15 +4,17 @@ import asyncio
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 
-from app.audit import SITE_KEY, Auditor
+from app.audit import CACHED_STAGE, SITE_KEY, Auditor
 from app.benchmark import compare
 from app.cache import JsonCache
 from app.fetch.safe_fetch import FetchError, UnsafeURLError, site_root
 from app.industry import Industry, resolve_industry
 from app.models import JobStatus
+from app.records import RunLog, RunRecord
 from app.scoring.claude_strategy import leader_for_industry, media_strategy, more_leaders
 from app.scoring.signals import registrable_domain
 from app.scoring.readiness import PR_STRATEGY_ACTION
@@ -90,6 +92,8 @@ class JobManager:
     jobs: dict[str, JobState] = field(default_factory=dict)
     tasks: set[asyncio.Task] = field(default_factory=set)
     _bench_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    runs: RunLog | None = None
+    on_audit_done: Callable[[str], None] | None = None  # e.g. pre-build the full PDF report
 
     def _update(self, job_id: str, **changes) -> None:
         current = self.jobs[job_id]
@@ -143,11 +147,16 @@ class JobManager:
                          progress=state.progress, error=state.error)
 
     async def _run(self, job_id: str, url: str, refresh: bool) -> None:
+        reused = False
+
         async def progress(stage: str, pct: int) -> None:
+            nonlocal reused
+            reused = reused or stage == CACHED_STAGE  # the auditor served its saved result
             self._update(job_id, status="running", stage=stage, progress=pct)
 
         try:
             await progress("开始品牌诊断", 5)
+            started = time.time()
             brand = await self.auditor.audit(url, progress, refresh=refresh)
             industry = resolve_industry(brand["industry"]["detected"], *_customs(brand["industry"]))
             benchmark = None
@@ -164,6 +173,11 @@ class JobManager:
                 "actions": with_strategy(brand["actions"], strategy),
             }
             self.cache.set(f"{AUDIT_KEY}{job_id}", result)
+            if self.runs is not None:
+                self.runs.add(RunRecord("audit", brand["domain"], brand["brand_name"], brand["score"],
+                                        round(time.time() - started, 1), reused))
+            if self.on_audit_done is not None:
+                self.on_audit_done(job_id)
             self._update(job_id, status="done", stage="诊断完成", progress=100)
         except (UnsafeURLError, FetchError) as exc:
             # These messages are written by us and never contain internal details.
@@ -177,9 +191,12 @@ class JobManager:
     async def benchmark_for(self, brand: dict, industry: Industry) -> dict:
         """Compare the brand with its industry leader. When the leader's site can't be audited (bot
         walls, errors, no readable content), fall back to the next strongest brand, asking Claude for
-        more candidates if every named one fails, so a report nearly always has a benchmark."""
-        if industry.is_leader(brand["domain"]):
-            return compare(brand, brand, industry)
+        more candidates if every named one fails, so a report nearly always has a benchmark.
+
+        When the brand *is* the leader, it is compared with the next strongest brand instead, so the
+        report shows how far ahead it is (falling back to the plain "you are the leader" note if no
+        runner-up can be audited)."""
+        brand_leads = industry.is_leader(brand["domain"])
         candidates = industry.candidates()
         seen = {registrable_domain(c["leader_url"]) for c in candidates}
         tried: list[str] = []
@@ -192,6 +209,8 @@ class JobManager:
                 continue
             leader, reason = await self._leader_audit(stand_in)
             if leader is not None:
+                if brand_leads:
+                    return compare(brand, leader, stand_in, brand_is_leader=True)
                 fallback = stand_in.leader_domain != industry.leader_domain
                 return compare(brand, leader, stand_in, fallback_from=industry if fallback else None)
             tried.append(stand_in.leader)
@@ -201,6 +220,8 @@ class JobManager:
                 fresh = [c for c in extra if registrable_domain(c["leader_url"]) not in seen]
                 seen |= {registrable_domain(c["leader_url"]) for c in fresh}
                 candidates += fresh[:MAX_LEADER_CANDIDATES - len(candidates)]
+        if brand_leads:
+            return compare(brand, brand, industry)
         return compare(brand, None, industry, reason=first_reason or "暂时无法评估该行业标杆网站。")
 
     async def _leader_audit(self, industry: Industry) -> tuple[dict | None, str | None]:

@@ -1,4 +1,10 @@
-"""Background jobs for "send the full PDF report to my email": full audit → PDF → SMTP."""
+"""Background jobs for "send the full PDF report to my email": full audit → PDF → SMTP.
+
+The site-level part of the full audit (crawl, technical/schema/E-E-A-T/platform analysis and the AI-written
+narrative) is saved per website and reused by every report on that site while its quick audit is unchanged.
+It is also pre-built in the background as soon as a quick audit finishes, so the PDF is usually ready by the
+time the visitor asks for it.
+"""
 
 import asyncio
 import logging
@@ -9,14 +15,15 @@ from dataclasses import dataclass, field, replace
 from app.cache import JsonCache
 from app.config import Settings
 from app.fetch.safe_fetch import FetchError, UnsafeURLError
-from app.fullaudit.analysis import FullAuditor
+from app.fullaudit.analysis import FullAuditor, with_audit_context
 from app.jobs import AUDIT_KEY, AUDIT_TTL_SECONDS
+from app.records import RunLog, RunRecord
 from app.report.mailer import EmailError, build_message, send_report
 from app.report.pdf import render_report_pdf
 
 log = logging.getLogger(__name__)
 
-FULL_KEY = "full-report:v1:"
+FULL_KEY = "full-site:v1:"  # per website (registrable domain)
 SENDS_KEY = "report-sends:v1:"
 FINISHED_TTL_SECONDS = 3600
 GENERIC_ERROR = "报告生成失败，请稍后重试。"
@@ -41,9 +48,11 @@ class ReportManager:
     settings: Settings
     cache: JsonCache
     full_auditor: FullAuditor
+    runs: RunLog | None = None
     jobs: dict[str, ReportJob] = field(default_factory=dict)
     tasks: set[asyncio.Task] = field(default_factory=set)
     _slots: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(2))
+    _prewarm_slots: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(1))  # never starves sends
     _locks: dict[str, asyncio.Lock] = field(default_factory=dict)
 
     def _update(self, job_id: str, **changes) -> None:
@@ -79,30 +88,65 @@ class ReportManager:
     def status(self, job_id: str) -> ReportJob | None:
         return self.jobs.get(job_id)
 
-    async def _report_data(self, audit_id: str, progress) -> dict:
-        """The full audit for this quick audit, built once and reused for repeat sends."""
-        lock = self._locks.setdefault(audit_id, asyncio.Lock())
+    def _record(self, record: RunRecord) -> None:
+        if self.runs is not None:
+            self.runs.add(record)
+
+    async def _report_data(self, audit_id: str, progress=None) -> tuple[dict, bool]:
+        """The full report for this audit and whether the site analysis came from the saved copy.
+
+        The site analysis is reused while it was built from the same quick audit (same `audited_at`); the
+        report-specific parts (industry, benchmark, strategy) always come from this audit."""
+        quick = self.cache.get(f"{AUDIT_KEY}{audit_id}", AUDIT_TTL_SECONDS)
+        if quick is None:
+            raise ReportRequestError("诊断报告已过期，请重新诊断后再试。")
+        domain = quick["domain"]
+        lock = self._locks.setdefault(domain, asyncio.Lock())
+        if lock.locked() and progress:
+            await progress("该网站的完整报告正在后台生成，请稍候", 40)
         async with lock:
-            key = f"{FULL_KEY}{audit_id}"
-            if cached := self.cache.get(key, self.settings.user_cache_ttl_seconds):
-                return cached
-            quick = self.cache.get(f"{AUDIT_KEY}{audit_id}", AUDIT_TTL_SECONDS)
-            if quick is None:
-                raise ReportRequestError("诊断报告已过期，请重新诊断后再试。")
+            key = f"{FULL_KEY}{domain}"
+            saved = self.cache.get(key, self.settings.full_report_cache_ttl_seconds)
+            if saved and saved.get("quick_audited_at") == quick["audited_at"]:
+                if progress:
+                    await progress("已加载近期生成的完整诊断数据", 80)
+                return with_audit_context(saved, quick), True
             report = await self.full_auditor.run(quick, progress)
             if report["ai_written"] or self.full_auditor.claude is None:  # retry a failed AI analysis next time
-                self.cache.set(key, report)
-            return report
+                self.cache.set(key, {**report, "quick_audited_at": quick["audited_at"]})
+            return report, False
+
+    def prewarm(self, audit_id: str) -> None:
+        """Build the site analysis in the background right after a quick audit, ready for a later send."""
+        if not (self.settings.email_enabled and self.settings.report_prewarm):
+            return
+        task = asyncio.create_task(self._prewarm(audit_id))
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+
+    async def _prewarm(self, audit_id: str) -> None:
+        started = time.monotonic()
+        try:
+            async with self._prewarm_slots:
+                async with asyncio.timeout(self.settings.report_deadline_seconds):
+                    report, cached = await self._report_data(audit_id)
+            if not cached:
+                self._record(RunRecord("prewarm", report["domain"], report["brand_name"], report["geo_score"],
+                                       round(time.monotonic() - started, 1), False))
+        except Exception as exc:  # a failed pre-build just means the send builds it instead
+            log.warning("Report pre-build for audit %s failed: %s", audit_id, type(exc).__name__)
 
     async def _run(self, job_id: str, audit_id: str, email: str) -> None:
         async def progress(stage: str, pct: int) -> None:
             self._update(job_id, status="running", stage=stage, progress=pct)
 
+        started = time.monotonic()
+        report, cached = None, False
         try:
             async with self._slots:
                 await progress("开始全面诊断", 5)
                 async with asyncio.timeout(self.settings.report_deadline_seconds):
-                    report = await self._report_data(audit_id, progress)
+                    report, cached = await self._report_data(audit_id, progress)
                     await progress("正在生成PDF报告", 88)
                     pdf = await asyncio.to_thread(render_report_pdf, report, self.settings.pdf_font_path)
                     await progress("正在发送邮件", 94)
@@ -110,9 +154,14 @@ class ReportManager:
                                             report["geo_score"], pdf)
                     await send_report(self.settings, message)
             self._update(job_id, status="sent", stage="报告已发送", progress=100)
-            log.info("Full report for audit %s sent (%d bytes)", audit_id, len(pdf))
+            log.info("Full report for audit %s sent (%d bytes, saved analysis: %s)", audit_id, len(pdf), cached)
+            self._record(RunRecord("report", report["domain"], report["brand_name"], report["geo_score"],
+                                   round(time.monotonic() - started, 1), cached, "sent"))
         except (ReportRequestError, EmailError, UnsafeURLError, FetchError) as exc:
             self._update(job_id, status="error", stage="发送失败", error=str(exc))
+            if report:
+                self._record(RunRecord("report", report["domain"], report["brand_name"], report["geo_score"],
+                                       round(time.monotonic() - started, 1), cached, "error"))
         except TimeoutError:
             self._update(job_id, status="error", stage="发送失败", error="报告生成耗时过长，请稍后重试。")
         except Exception:

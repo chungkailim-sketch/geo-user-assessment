@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/static/css/app.css?v={{ asset_v }}">
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <header class="topbar">
     <a class="brand" href="/" aria-label="罗德出海GEO准备度评估首页">
       <img class="brand-logo" src="/static/img/rf-geo-logo.png?v={{ asset_v }}" alt="rf. GEO" width="92" height="31">

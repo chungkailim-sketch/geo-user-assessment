@@ -214,14 +214,29 @@ class FullAuditor:
             "llms": llms_result,
             "schema": schema,
             "platforms": platforms,
-            "benchmark": quick.get("benchmark"),
-            "industry": quick.get("industry", {}),
-            "strategy": next((a for a in quick.get("actions", []) if a.get("kind") == "strategy"), None),
-            "actions": [a for a in quick.get("actions", []) if a.get("kind") != "strategy"],
+            **audit_context(quick),
             "pages": [{"url": p.url, "title": p.title, "words": p.word_count} for p in pages],
             "failed_pages": len(crawl.errors),
             "ai_written": analysis is not None,
         }
+
+
+def audit_context(quick: dict) -> dict:
+    """The report parts that belong to one audit rather than to the website: industry and benchmark (the
+    visitor can switch them) and the strategy and actions that depend on them."""
+    actions = quick.get("actions", [])
+    return {
+        "benchmark": quick.get("benchmark"),
+        "industry": quick.get("industry", {}),
+        "strategy": next((a for a in actions if a.get("kind") == "strategy"), None),
+        "actions": [a for a in actions if a.get("kind") != "strategy"],
+    }
+
+
+def with_audit_context(saved: dict, quick: dict) -> dict:
+    """A saved site analysis, completed with this audit's industry/benchmark and a fresh timestamp."""
+    report = {k: v for k, v in saved.items() if k != "quick_audited_at"}
+    return {**report, **audit_context(quick), "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
 
 
 def _summary_for_claude(quick: dict, technical: dict, access: dict, llms: dict, schema: dict, signals: dict) -> dict:

@@ -98,8 +98,20 @@ def test_failed_industry_identification_is_not_cached(make_client):
 def test_leader_site_is_its_own_benchmark(make_client):
     with make_client(RoutingClaude(SMART_CLEANING)) as client:
         job = wait_for(client, client.post("/api/audit", json={"url": "https://www.dyson.com"}).json()["job_id"])
-    assert job["result"]["benchmark"]["is_leader"] is True
+    assert job["result"]["benchmark"]["is_leader"] is True  # no runner-up named: just the leader note
     assert job["result"]["industry"]["method"] == "ai"
+
+
+def test_industry_leader_is_compared_with_the_next_strongest_brand(make_client):
+    runner_up = {"leader": "Acme Clean", "leader_zh": "艾可", "leader_url": "https://www.acmeclean.example"}
+    with make_client(RoutingClaude({**SMART_CLEANING, "alternates": [runner_up]})) as client:
+        job = wait_for(client, client.post("/api/audit", json={"url": "https://www.dyson.com"}).json()["job_id"])
+    benchmark = job["result"]["benchmark"]
+    assert benchmark["brand_is_leader"] is True and benchmark["is_leader"] is False
+    assert benchmark["leader"] == "Acme Clean" and benchmark["status"] == "ok"
+    assert benchmark["leader_scores"]["url"] == "https://www.acmeclean.example/"
+    assert benchmark["gaps"]["overall"] == round(job["result"]["score"] - benchmark["leader_scores"]["score"], 1)
+    assert benchmark["fallback_from"] is None
 
 
 def test_leader_unreachable_is_reported_not_fatal(make_client):

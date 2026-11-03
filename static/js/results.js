@@ -215,6 +215,13 @@
       status.textContent = from
         ? "原行业标杆" + (from.leader_zh || from.leader) + "的官网限制自动访问，已改为对标行业内的下一位领先品牌" + leader + "。"
         : "";
+      if (b.brand_is_leader) {
+        // The brand leads its industry: say so, then compare it with the next strongest brand.
+        const industryName = b.industry_zh || b.industry;
+        $("benchmark-title").textContent = "对标" + industryName + "行业标杆：您的品牌已是行业标杆";
+        status.replaceChildren(el("span", { className: "leader-banner leader-note",
+          text: brand + "已是" + industryName + "行业的标杆品牌。以下与行业内排名其后的领先品牌" + leader + "对比，查看各项指标的差距。" }));
+      }
       $("gap-tiles").replaceChildren(
         gapTile("综合就绪度", b.gaps.overall, leader),
         gapTile("内容可引用性", b.gaps.citability, leader),
