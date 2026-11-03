@@ -361,5 +361,100 @@
     }
   });
 
+  // ---------- full PDF report by email ----------
+  const EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/;
+  const REPORT_POLL_MS = 3000;
+
+  function reportStatus(text, kind) {
+    const status = $("report-status");
+    status.textContent = text;
+    status.className = "report-status small" + (kind ? " " + kind : "");
+  }
+
+  function reportBusy(busy) {
+    $("report-submit").disabled = busy;
+    $("report-email").disabled = busy;
+    $("report-progress").hidden = !busy;
+  }
+
+  function reportProgress(pct) {
+    $("report-progress-fill").style.width = Math.max(5, pct) + "%";
+    $("report-progress-bar").setAttribute("aria-valuenow", String(pct));
+  }
+
+  function errorText(data, fallback) {
+    return data && typeof data.detail === "string" ? data.detail : fallback;
+  }
+
+  async function pollReport(id, email, errors) {
+    try {
+      const response = await fetch("/api/report/" + encodeURIComponent(id), { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const job = await response.json();
+      if (job.status === "sent") {
+        reportBusy(false);
+        reportProgress(100);
+        reportStatus("报告已发送至 " + email + "，请查收邮件（如未收到，请检查垃圾邮件文件夹）。", "ok");
+        return;
+      }
+      if (job.status === "error") {
+        reportBusy(false);
+        reportStatus(job.error || "报告发送失败，请稍后重试。", "error");
+        return;
+      }
+      reportProgress(job.progress);
+      reportStatus((job.stage || "处理中") + "…");
+      errors = 0;
+    } catch (err) {
+      errors += 1;
+      if (errors >= MAX_POLL_ERRORS) {
+        reportBusy(false);
+        reportStatus("与服务器的连接已中断。报告仍可能在后台生成并发送，请稍后查收邮件。", "error");
+        return;
+      }
+    }
+    setTimeout(() => pollReport(id, email, errors), REPORT_POLL_MS);
+  }
+
+  $("report-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = $("report-email");
+    const email = input.value.trim();
+    if (!EMAIL_RE.test(email)) {
+      input.setAttribute("aria-invalid", "true");
+      reportStatus("请输入有效的邮箱地址。", "error");
+      input.focus();
+      return;
+    }
+    input.removeAttribute("aria-invalid");
+    reportBusy(true);
+    reportProgress(3);
+    reportStatus("已提交，正在准备全面诊断…");
+    try {
+      const response = await fetch("/api/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audit_id: jobId, email: email }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        reportBusy(false);
+        reportStatus(errorText(data, response.status === 422 ? "请输入有效的邮箱地址。" : "提交失败，请稍后重试。"), "error");
+        return;
+      }
+      pollReport(data.job_id, email, 0);
+    } catch (err) {
+      reportBusy(false);
+      reportStatus("网络异常，请稍后重试。", "error");
+    }
+  });
+
+  fetch("/api/report/config", { cache: "no-store" })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((config) => {
+      if (config && !config.enabled) $("report-submit").disabled = true;
+    })
+    .catch(() => {});
+
   poll();
 })();

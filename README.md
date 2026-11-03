@@ -32,6 +32,47 @@ All of this needs `ANTHROPIC_API_KEY`. Without it the report has no industry or 
 
 A **术语表** (glossary) panel opens from the header or from the ⓘ buttons on the results page. It covers the score ranges (overall, passage grades, platform bands) and definitions of the terms used, which follow the GEO skill.
 
+## Full PDF report by email
+
+Below the score on the results page, a **发送完整PDF报告至我的邮箱** call to action takes an email address. The server then runs the full audit from the GEO skill (geo.zip, `references/modules/audit.md`), builds a PDF and emails it as an attachment. This takes about 2–4 minutes, and the page shows progress until the email is sent.
+
+The full audit scores six categories and combines them into the **GEO composite score**: Citability × 25% + Brand Authority × 20% + Content E-E-A-T × 20% + Technical GEO × 15% + Schema × 10% + Platform optimization × 10%. Ratings are 90+ 优秀, 75–89 良好, 60–74 一般, 40–59 较弱 and below 40 亟需优化.
+
+| Category | Source |
+|---|---|
+| AI citability and brand authority | Taken from the quick audit, which uses the same methodology |
+| Content E-E-A-T | The `content-eeat` rubric: four 25-point dimensions plus a topical-authority modifier. Claude judges it from page excerpts and on-site signals. Without a key, it is estimated from those signals. |
+| Technical GEO | 70% from the `technical-seo` 100-point rubric (crawlability, indexability, security headers, URL structure, mobile, Core Web Vitals proxies, server-side rendering, speed/CDN). 20% from AI crawler access: 12 AI crawlers checked against robots.txt and meta robots, scored with the `crawler-access` formula. 10% from llms.txt structure. |
+| Schema | The `schema-structured-data` 100-point rubric: Organization, sameAs, Article/author, business types, WebSite + SearchAction, breadcrumbs, format, validity, knowsAbout, deprecated types |
+| Platform optimization | The `platform-optimizer` rubrics for Google AI Overviews, ChatGPT, Perplexity, Gemini and Bing Copilot |
+
+Checks that need site-owner access, such as Bing Webmaster Tools, field Core Web Vitals or the Knowledge Panel, are marked as not measured and left out of the score. They are not scored as failures. Findings are classified as critical, high, medium or low using the severity rules in `audit.md`.
+
+**PDF contents**, in Simplified Chinese on A4, with each section starting on a new page:
+- Cover with a score gauge
+- Executive summary and score breakdown
+- AI citability (subscores and the passages to rewrite)
+- Brand AI citation authority (platform scores and evidence)
+- Content E-E-A-T
+- Technical GEO (AI crawler access table and llms.txt)
+- AI platform readiness
+- Industry benchmark, when one is available
+- Appendix of pages analysed, with the methodology
+- A closing page linking to the GEO advisory offering: **欲了解更多，请点击这里** (https://www.ruderfinnasia.com/zh/products/ai-visibility-geo-advisory)
+
+Schema and the technical-SEO checks still count towards the GEO score, but their detail tables aren't printed. The executive summary is written by Claude when a key is set. Without a key it comes from a template.
+
+The email attachment is named `Ruder Finn for <brand>_GEO Readiness Audit_<ddmmyyyy>.pdf`. The name is written on one header line, never split into RFC 2231 continuations, so Outlook and webmail clients keep the `.pdf` name.
+
+**Fonts.** The Docker image installs `fonts-wqy-microhei`, which is embedded as a subset so Chinese renders in every PDF viewer. Locally, Microsoft YaHei is used on Windows. `PDF_FONT_PATH` overrides both.
+
+**Email** is sent over SMTP and is switched off until `SMTP_HOST` and `SMTP_FROM` are set. Until then, the send button is disabled.
+
+**Limits:**
+- 3 requests per day per visitor IP, and at most 3 sends per report.
+- 2 full audits run at a time, with a 7-minute deadline each.
+- The full audit is cached for 24 hours, so a repeat send doesn't re-crawl the site.
+
 ## How Authority is measured
 
 1. **Wikipedia/Wikidata (always, deterministic).** The brand is matched to its Wikidata item through the item's *official website* (P856), so `apple.com` resolves to Apple Inc. and not the fruit. We also read the article size, how many Wikipedia articles cite the domain, and the official social accounts and YouTube subscriber counts recorded on Wikidata.
@@ -58,6 +99,10 @@ The repo includes `railway.json`, which builds the Dockerfile and health-checks 
 | `ANTHROPIC_API_KEY` | your key (leave empty to run in limited mode) |
 | `CLAUDE_MODEL` | `claude-opus-5-5` |
 | `TRUST_PROXY_HEADERS` | `true`, so rate limits use the real client IP behind Railway's proxy |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY` | Your mail server, for example `smtp.office365.com`, `587`, `starttls`. Use `ssl` for port 465. |
+| `SMTP_USERNAME`, `SMTP_PASSWORD` | Mailbox login or API credentials, such as an app password or a SendGrid API key |
+| `SMTP_FROM`, `SMTP_FROM_NAME`, `SMTP_REPLY_TO` | Sender address and name, and an optional reply-to address |
+| `REPORT_BCC` | Optional. Internal addresses that get a copy of every report sent (comma-separated). |
 
 The SQLite cache lives in the container, so it resets on every deploy. That's harmless, because leader audits are re-scored on first use.
 
@@ -70,6 +115,9 @@ Results are cached in SQLite (`data/cache.sqlite3`): brand audits for 24 h, lead
 | `POST` | `/api/audit` `{url, refresh?}` | Start an audit; returns `job_id` and `results_url` |
 | `GET` | `/api/audit/{job_id}` | Job status with progress and stage, then the full result JSON |
 | `POST` | `/api/benchmark` `{audit_id, industry}` or `{audit_id, custom_industry}` | Re-compare against another industry on the report, or one the user types in |
+| `GET` | `/api/report/config` | `{enabled}`: whether email delivery is configured |
+| `POST` | `/api/report` `{audit_id, email}` | Start the full audit, then the PDF, then the email. Returns `job_id`. |
+| `GET` | `/api/report/{job_id}` | Report job status: `queued`, `running`, `sent` or `error`, with the stage and progress |
 
 ## Safety and limits
 

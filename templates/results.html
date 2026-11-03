@@ -46,6 +46,26 @@
       </div>
     </section>
 
+    <!-- 完整版PDF报告 CTA -->
+    <section class="card report-cta" id="report-cta" aria-labelledby="report-cta-title">
+      <div class="report-cta-text">
+        <p class="eyebrow">完整版诊断报告（PDF）</p>
+        <h2 id="report-cta-title">获取GEO全面诊断报告，发送至您的邮箱</h2>
+        <p class="muted small">在快速诊断基础上，进一步评估内容质量E-E-A-T、技术GEO基础（AI爬虫权限、llms.txt）、结构化数据与五大AI平台适配度，并附优先行动计划与30天执行清单。生成约需2–4分钟。</p>
+      </div>
+      <form id="report-form" class="report-form" novalidate>
+        <label class="sr-only" for="report-email">邮箱地址</label>
+        <input id="report-email" type="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="请输入您的邮箱地址" required>
+        <button type="submit" id="report-submit" class="button">发送完整PDF报告至我的邮箱</button>
+      </form>
+      <div class="report-progress" id="report-progress" hidden>
+        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="report-progress-bar">
+          <div class="progress-fill" id="report-progress-fill"></div>
+        </div>
+      </div>
+      <p id="report-status" class="report-status small" role="status" aria-live="polite"></p>
+    </section>
+
     <!-- 2. 两大维度 -->
     <section class="grid-2">
       <div class="card stat">
@@ -150,6 +170,7 @@
     </section>
 
     <div class="report-footer">
+      <a class="button" href="#report-cta">发送完整PDF报告至邮箱</a>
       <a class="button secondary" href="/">诊断其他网站</a>
       <button class="button secondary" id="rerun" type="button">重新诊断</button>
     </div>

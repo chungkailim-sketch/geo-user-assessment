@@ -11,7 +11,7 @@ import ipaddress
 import re
 import socket
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Any, Iterable
 from urllib.parse import urljoin, urlparse, urlunparse
 
@@ -70,6 +70,9 @@ class FetchResult:
     status: int
     content_type: str
     text: str
+    headers: dict[str, str] = field(default_factory=dict)  # final response, lower-cased names
+    elapsed_ms: int = 0  # time to the final response's headers (TTFB proxy), redirects included
+    redirects: int = 0
 
 
 def normalize_url(raw: str) -> str:
@@ -93,7 +96,10 @@ def normalize_url(raw: str) -> str:
     if port not in ALLOWED_PORTS:
         raise UnsafeURLError("仅支持标准网页端口（80/443）。")
     path = parsed.path or "/"
-    return urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), path, "", parsed.query, ""))
+    netloc = parsed.netloc.lower()
+    if (parsed.scheme.lower(), port) in (("https", 443), ("http", 80)):
+        netloc = netloc.rsplit(":", 1)[0]  # "https://site:443/" → "https://site/" (same URL, cleaner display)
+    return urlunparse((parsed.scheme.lower(), netloc, path, "", parsed.query, ""))
 
 
 def site_root(url: str) -> str:
@@ -223,7 +229,8 @@ class SafeFetcher:
 
     async def _fetch(self, url: str, accept: tuple[str, ...]) -> FetchResult:
         current = normalize_url(url)
-        for _ in range(self.settings.max_redirects + 1):
+        started = time.monotonic()
+        for hops in range(self.settings.max_redirects + 1):
             host = urlparse(current).hostname or ""
             await assert_public_host(host, self.settings)
             await self._politeness_wait(host)
@@ -235,7 +242,9 @@ class SafeFetcher:
                             raise FetchError("网站重定向缺少目标地址。")
                         current = normalize_url(urljoin(current, location))
                         continue
-                    return await self._read_response(current, response, accept)
+                    elapsed_ms = int((time.monotonic() - started) * 1000)
+                    result = await self._read_response(current, response, accept)
+                    return replace(result, elapsed_ms=elapsed_ms, redirects=hops)
             except httpx.TimeoutException as exc:
                 raise FetchError("网站响应超时。") from exc
             except httpx.HTTPError as exc:
@@ -254,7 +263,8 @@ class SafeFetcher:
         text = body.decode(response.encoding or "utf-8", errors="replace")
         if any(t in content_type for t in HTML_TYPES) and looks_like_challenge(response.status_code, text):
             raise BlockedError()
-        return FetchResult(url=url, status=response.status_code, content_type=content_type, text=text)
+        headers = {k.lower(): v for k, v in response.headers.items()}
+        return FetchResult(url=url, status=response.status_code, content_type=content_type, text=text, headers=headers)
 
     async def _read_capped(self, response: httpx.Response) -> bytes:
         """Read up to max_response_bytes; anything beyond is ignored (enough HTML to score)."""
