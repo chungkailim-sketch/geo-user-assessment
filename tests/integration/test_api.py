@@ -257,7 +257,8 @@ def test_pages_render_with_security_headers(make_client):
         assert 'value="https://www..com"' in index.text
         assert "Citability × 0.55" not in index.text and "可引用性 × 0.55" not in index.text
         assert "explainer" not in index.text  # the three info boxes were removed
-        assert "罗德亚洲AI可见度与GEO优化咨询。欲了解更多，请点击" in index.text
+        assert "欲了解更多，请访问罗德AI可见度与GEO优化咨询<a" in index.text and ">官网</a>" in index.text
+        assert "请点击" not in index.text
         assert 'href="https://www.ruderfinnasia.com/zh/products/ai-visibility-geo-advisory"' in index.text
         assert client.get("/static/img/rf-geo-logo.png").status_code == 200
         assert 'rel="icon" type="image/svg+xml" href="/static/img/rf-favicon.svg' in index.text

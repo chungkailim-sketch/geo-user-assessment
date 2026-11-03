@@ -84,7 +84,10 @@ def test_report_is_built_and_emailed(email_settings, mock_transport, sent):
     assert attachment.get_filename() == f"Ruder Finn for Acme Clean_GEO Readiness Audit_{today}.pdf"
     assert attachment.get_param("name") == attachment.get_filename() and pdf.startswith(b"%PDF")
     assert OFFERING_URL.encode() in pdf  # last-page link annotation
-    assert OFFERING_URL in message.get_body(("html",)).get_content()
+    html = message.get_body(("html",)).get_content()
+    assert f'欲了解更多，请访问罗德AI可见度与GEO优化咨询<a href="{OFFERING_URL}" style="color:#1b7531">官网</a>' in html
+    assert f"欲了解更多，请访问罗德AI可见度与GEO优化咨询官网：{OFFERING_URL}" in message.get_body(("plain",)).get_content()
+    assert "请点击" not in html and "行动计划" not in html
 
 
 def test_report_send_limit_and_validation(email_settings, mock_transport, sent):

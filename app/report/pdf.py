@@ -288,8 +288,8 @@ class ReportBuilder:
         self.story.append(self.p("罗德出海GEO顾问团队可协助您将本报告中的发现转化为可执行的优化方案，"
                                  "涵盖内容改写、结构化数据部署、AI爬虫与 llms.txt 配置，以及面向AI高频引用媒体的公关传播。", self.s.center))
         self.story.append(Spacer(1, 12 * mm))
-        link = f'<a href="{OFFERING_URL}" color="#ffffff"><u>欲了解更多，请点击这里</u></a>'
-        button = Table([[self.p(link, self.s.cta)]], colWidths=[100 * mm], rowHeights=[16 * mm])
+        link = f'欲了解更多，请访问罗德AI可见度与GEO优化咨询<a href="{OFFERING_URL}" color="#ffffff"><u>官网</u></a>'
+        button = Table([[self.p(link, self.s.cta)]], colWidths=[CONTENT_WIDTH], rowHeights=[16 * mm])
         button.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), GREEN), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                                     ("ROUNDEDCORNERS", [8, 8, 8, 8])]))
         self.story += [button, Spacer(1, 6 * mm),

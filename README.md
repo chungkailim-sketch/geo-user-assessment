@@ -58,7 +58,7 @@ Checks that need site-owner access, such as Bing Webmaster Tools, field Core Web
 - AI platform readiness
 - Industry benchmark, when one is available
 - Appendix of pages analysed, with the methodology
-- A closing page linking to the GEO advisory offering: **欲了解更多，请点击这里** (https://www.ruderfinnasia.com/zh/products/ai-visibility-geo-advisory)
+- A closing page linking to the GEO advisory offering: **欲了解更多，请访问罗德AI可见度与GEO优化咨询官网**, with 官网 as the link (https://www.ruderfinnasia.com/zh/products/ai-visibility-geo-advisory)
 
 Schema and the technical-SEO checks still count towards the GEO score, but their detail tables aren't printed. The executive summary is written by Claude when a key is set. Without a key it comes from a template.
 

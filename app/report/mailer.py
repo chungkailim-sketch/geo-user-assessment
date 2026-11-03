@@ -60,17 +60,16 @@ def build_message(settings: Settings, to: str, brand: str, url: str, geo_score: 
     message["Message-ID"] = make_msgid(domain=settings.smtp_from.strip().split("@")[-1])
     text = (
         f"您好！\n\n附件是 {brand_line}（{url}）的GEO全面诊断报告（PDF），GEO综合得分 {geo_score:.0f}/100。\n"
-        "报告涵盖AI内容可引用性、品牌 AI 引用权威度、内容质量E-E-A-T、技术GEO基础、结构化数据与AI平台适配度六大维度，"
-        "并附有优先行动计划。\n\n"
-        f"欲了解罗德出海GEO顾问服务，请访问：{OFFERING_URL}\n\n罗德出海GEO准备度评估\n"
+        "报告涵盖AI内容可引用性、品牌 AI 引用权威度、内容质量E-E-A-T、技术GEO基础、结构化数据与AI平台适配度六大维度。\n\n"
+        f"欲了解更多，请访问罗德AI可见度与GEO优化咨询官网：{OFFERING_URL}\n\n罗德出海GEO准备度评估\n"
     )
     message.set_content(text)
     message.add_alternative(
         "<div style=\"font-family:Arial,'Microsoft YaHei',sans-serif;font-size:14px;line-height:1.7;color:#1a1a1a\">"
         f"<p>您好！</p><p>附件是 <b>{escape(brand_line)}</b>（{escape(url)}）的GEO全面诊断报告（PDF），"
         f"GEO综合得分 <b>{geo_score:.0f}/100</b>。</p>"
-        "<p>报告涵盖AI内容可引用性、品牌 AI 引用权威度、内容质量E-E-A-T、技术GEO基础、结构化数据与AI平台适配度六大维度，并附有优先行动计划。</p>"
-        f"<p><a href=\"{OFFERING_URL}\" style=\"color:#1b7531\">欲了解更多，请点击这里</a></p>"
+        "<p>报告涵盖AI内容可引用性、品牌 AI 引用权威度、内容质量E-E-A-T、技术GEO基础、结构化数据与AI平台适配度六大维度。</p>"
+        f"<p>欲了解更多，请访问罗德AI可见度与GEO优化咨询<a href=\"{OFFERING_URL}\" style=\"color:#1b7531\">官网</a></p>"
         "<p style=\"color:#727272\">罗德出海GEO准备度评估</p></div>",
         subtype="html",
     )
